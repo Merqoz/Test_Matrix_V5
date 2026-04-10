@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Changelog — Test Equipment Matrix</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/nav.css">
+    <style>
+        :root {
+            --bg: #0a0e14;
+            --surface: #141822;
+            --border: rgba(0,217,255,0.1);
+            --cyan: #00d4ff;
+            --text: #e2e8f0;
+            --muted: #5c6370;
+            --green: #10b981;
+            --amber: #f59e0b;
+            --red: #ef4444;
+            --purple: #8b5cf6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: 'Space Grotesk', sans-serif; font-size: 14px;
+            line-height: 1.6; min-height: 100vh;
+        }
+        .container { max-width: 880px; margin: 0 auto; padding: 24px 32px 80px; }
+        .page-header {
+            display: flex; align-items: center; gap: 14px;
+            margin-bottom: 32px; padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .page-header .icon { font-size: 28px; color: var(--cyan); }
+        .page-header h1 {
+            font-size: 22px; font-weight: 600; color: var(--text);
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .page-header h1 span { color: var(--cyan); font-weight: 300; }
+        .page-header .subtitle { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+        .version-block {
+            margin-bottom: 36px; padding: 20px 24px;
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .version-header {
+            display: flex; align-items: baseline; gap: 12px;
+            margin-bottom: 14px; padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .version-tag {
+            font-family: 'JetBrains Mono', monospace; font-size: 16px;
+            font-weight: 700; color: var(--cyan);
+        }
+        .version-date {
+            font-family: 'JetBrains Mono', monospace; font-size: 12px;
+            color: var(--muted);
+        }
+
+        .change-group { margin-bottom: 14px; }
+        .change-group:last-child { margin-bottom: 0; }
+        .change-type {
+            font-size: 10px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.2px; padding: 2px 8px; border-radius: 4px;
+            display: inline-block; margin-bottom: 6px;
+        }
+        .change-type.added { background: rgba(16,185,129,0.12); color: var(--green); }
+        .change-type.changed { background: rgba(245,158,11,0.12); color: var(--amber); }
+        .change-type.fixed { background: rgba(239,68,68,0.12); color: var(--red); }
+        .change-type.verified { background: rgba(139,92,246,0.12); color: var(--purple); }
+
+        .change-title {
+            font-size: 13px; font-weight: 600; color: var(--text);
+            margin-bottom: 4px;
+        }
+        .change-items { list-style: none; padding: 0; }
+        .change-items li {
+            position: relative; padding-left: 16px; font-size: 12px;
+            color: #94a3b8; line-height: 1.7;
+        }
+        .change-items li::before {
+            content: '›'; position: absolute; left: 0; color: var(--cyan);
+            font-weight: 700; font-size: 14px;
+        }
+        .change-items code {
+            font-family: 'JetBrains Mono', monospace; font-size: 11px;
+            background: rgba(0,212,255,0.06); padding: 1px 5px;
+            border-radius: 3px; color: var(--cyan);
+        }
+
+        .back-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            color: var(--muted); font-size: 12px; text-decoration: none;
+            margin-bottom: 20px; transition: color 0.15s;
+        }
+        .back-link:hover { color: var(--cyan); }
+
+        @media (max-width: 640px) {
+            .container { padding: 16px; }
+            .version-block { padding: 14px 16px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav-tabs" id="navTabs"></nav>
+    <div class="container">
+        <a href="../index.html" class="back-link">← Back to Matrix</a>
+
+        <div class="page-header">
+            <span class="icon">◈</span>
+            <div>
+                <h1>Change<span>log</span></h1>
+                <div class="subtitle">All notable changes to the Test Equipment Matrix project</div>
+            </div>
+        </div>
+
+        <!-- v2.8.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.8.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type added">Added</span>
+                <div class="change-title">File Attachments on Flow Nodes</div>
+                <ul class="change-items">
+                    <li>New "Attachments" section in flow.html activity detail popup (below Equipment Items)</li>
+                    <li>Paperclip "Add" button opens file picker — any file type, multiple files, up to 10 MB each</li>
+                    <li>Click a filename to open the file directly in a new browser tab</li>
+                    <li>File-type icons: 📄 PDF, 🖼 image, 📊 spreadsheet, 📝 document, 📦 archive, 📎 other</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Sticky Scrollbar &amp; Header (index.html)</div>
+                <ul class="change-items">
+                    <li>Horizontal scrollbar always visible within viewport — no more scrolling to page bottom</li>
+                    <li>Table header rows pinned with <code>position: sticky</code> while scrolling vertically</li>
+                    <li>Freeze mode columns retain higher z-index and work correctly on top of sticky headers</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Location Colors Sync to Gantt Chart</div>
+                <ul class="change-items">
+                    <li>Gantt chart reloads custom location colors in real-time when changed on index.html settings</li>
+                    <li>Bars, map nodes, transport paths, legend dots all use single source of truth</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.7.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.7.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type fixed">Fixed</span>
+                <div class="change-title">Edge Port Indicators Clickable (flow.html)</div>
+                <ul class="change-items">
+                    <li>Port dots now have <code>pointer-events: all</code> and click handlers</li>
+                    <li>Click any port dot on a node to snap edge endpoint — no dragging needed</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Bidirectional Location &amp; Date Sync</div>
+                <ul class="change-items">
+                    <li><code>TestManager.updateLocation()</code> and <code>updateDate()</code> now sync to gantt bars via <code>_syncToGanttBars()</code></li>
+                    <li>Gantt chart listens for cross-tab changes and re-renders when matrix page writes</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.6.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.6.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type added">Added</span>
+                <div class="change-title">Edge Line Repositioning (flow.html)</div>
+                <ul class="change-items">
+                    <li>Click an edge to select — cyan highlight, draggable handles at both endpoints</li>
+                    <li>Port indicator dots on all 4 sides of connected nodes</li>
+                    <li>Drag handle or click port dot to reroute edge — snaps to nearest port</li>
+                    <li>Custom <code>fromSide</code>/<code>toSide</code> saved per edge, persists across reloads</li>
+                    <li>Right-click → "Reset Line Ports" clears custom routing</li>
+                    <li>Bezier paths and arrowheads support all 16 side combinations</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.5.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.5.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type fixed">Fixed</span>
+                <div class="change-title">Locked Filters Highlight on Flow Page Revisit</div>
+                <ul class="change-items">
+                    <li><code>_renderOnce()</code> now calls <code>_applyWpFilter()</code> — locked WP filters highlight nodes immediately</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Separated Locked Filters Between Pages</div>
+                <ul class="change-items">
+                    <li>index.html uses <code>matrixLockedTypeFilters</code> / <code>matrixLockedWpFilters</code></li>
+                    <li>flow.html uses <code>flowLockedWpFilters</code></li>
+                    <li>Backwards-compatible migration from old shared keys</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type fixed">Fixed</span>
+                <div class="change-title">Scroll Jump When Adding Test Activity</div>
+                <ul class="change-items">
+                    <li>Removed forced horizontal scroll — new columns respect current filter state</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.4.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.4.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type fixed">Fixed</span>
+                <div class="change-title">Gantt Bar Dragging After Assigning Dates</div>
+                <ul class="change-items">
+                    <li>Rewrote <code>_rebuildTransfers()</code> — bars can freely overlap, dates never forcibly rewritten</li>
+                    <li>Transfers only inserted when genuine gap exists between consecutive bars</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.3.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.3.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Bar Right-Click: "Change Location" Popup</div>
+                <ul class="change-items">
+                    <li>Replaced inline location list with dedicated modal popup</li>
+                    <li>Context menu now cleaner: Edit Dates, Change Location, Test Activities, Delete Bar</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Map Location Click → Rich Info</div>
+                <ul class="change-items">
+                    <li>Left-click location nodes (SVG or Leaflet) shows equipment + their linked test activities</li>
+                    <li>Interactive tooltip with smart positioning, scrollable, dismisses on click outside</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.2.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.2.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type added">Added</span>
+                <div class="change-title">Test Activities Without Dates on Gantt Chart</div>
+                <ul class="change-items">
+                    <li>Tests without dates now open Add modal pre-linked with purple badge</li>
+                    <li>Assign location and dates on the spot — synced back to matrix</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Bidirectional Test Data Sync &amp; Timeline Alignment</div>
+                <ul class="change-items">
+                    <li><code>_syncTestData()</code> syncs location in addition to dates</li>
+                    <li>Timeline slider restructured to align with gantt bars (220px label column)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.1.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.1.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type fixed">Fixed</span>
+                <div class="change-title">Gantt Timeline Indicator Alignment</div>
+                <ul class="change-items">
+                    <li>Header indicator uses pixel-based positioning from <code>gcGanttRows.clientWidth</code></li>
+                    <li>Accounts for scrollbar width difference between header and body</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type changed">Changed</span>
+                <div class="change-title">Bar Context Menu — Overlapping Test Filter</div>
+                <ul class="change-items">
+                    <li>Right-click a bar shows only test activities that overlap that bar's date range</li>
+                </ul>
+            </div>
+            <div class="change-group">
+                <span class="change-type verified">Verified</span>
+                <div class="change-title">JSON + CSV Storage Completeness</div>
+                <ul class="change-items">
+                    <li>All data round-trips correctly through both JSON and CSV export/import</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- v2.0.0 -->
+        <div class="version-block">
+            <div class="version-header">
+                <span class="version-tag">v2.0.0</span>
+                <span class="version-date">2026-04-10</span>
+            </div>
+            <div class="change-group">
+                <span class="change-type added">Added</span>
+                <div class="change-title">Gantt Chart Timeline Indicator in Header</div>
+                <ul class="change-items">
+                    <li>Blue vertical line extends through header area (month labels + milestone strip)</li>
+                    <li>Separate <code>gcTimeIndicatorHead</code> element synced with slider position</li>
+                </ul>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="../js/storage.js"></script>
+    <script src="../js/sync-config.js"></script>
+    <script src="../js/sync.js"></script>
+    <script src="../js/nav.js"></script>
+    <script src="../js/data.js"></script>
+    <script>document.addEventListener('DOMContentLoaded', function(){ StorageManager.init(); Nav.render('changelog'); });</script>
+</body>
+</html>
