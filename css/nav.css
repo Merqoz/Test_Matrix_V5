@@ -89,3 +89,42 @@
 .nav-tab.active .tab-badge {
     background: rgba(0, 212, 255, 0.3);
 }
+
+/* Theme toggle button in nav */
+.nav-theme-btn {
+    margin-left: 8px;
+    border: none !important;
+    background: transparent !important;
+    padding: 6px 10px !important;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+.nav-theme-btn:hover { opacity: 1; }
+.nav-theme-btn svg { width: 16px; height: 16px; }
+
+/* ══════ Theme Toggle Button ══════ */
+.nav-theme-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 8px;
+    background: transparent; border: 1px solid rgba(255,255,255,0.1);
+    cursor: pointer; margin-left: 8px; padding: 0;
+    transition: all 0.2s;
+}
+.nav-theme-btn svg { width: 18px; height: 18px; }
+.nav-theme-btn .theme-icon-sun { display: block; color: #f59e0b; }
+.nav-theme-btn .theme-icon-moon { display: none; color: #6366f1; }
+.nav-theme-btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
+
+/* When light theme is active, show moon icon instead */
+.nav-theme-btn.active .theme-icon-sun { display: none; }
+.nav-theme-btn.active .theme-icon-moon { display: block; }
+
+/* Light theme overrides for the button */
+.light-theme .nav-theme-btn {
+    border-color: #d1d5db;
+}
+.light-theme .nav-theme-btn:hover {
+    background: #f1f5f9; border-color: #94a3b8;
+}
+.light-theme .nav-theme-btn .theme-icon-moon { color: #4f46e5; }

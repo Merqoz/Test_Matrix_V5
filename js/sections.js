@@ -55,6 +55,29 @@ const SectionManager = {
 
         if (section.rows.length > 1) {
             if (confirm('Are you sure you want to delete this row?')) {
+                // Log to history
+                const row = section.rows[rowIndex];
+                if (row && (row.itemNo || row.description) && typeof StorageManager !== 'undefined') {
+                    const history = StorageManager.loadHistory();
+                    history.deletedEquipment.push({
+                        section: section.name,
+                        sectionId: section.id,
+                        itemNo: row.itemNo || '',
+                        description: row.description || '',
+                        partNo: row.partNo || '',
+                        qty: row.qty || '',
+                        melQty: row.melQty || '',
+                        workpack: row.workpack || '',
+                        stakeholder: row.stakeholder || '',
+                        testQty: row.testQty ? JSON.parse(JSON.stringify(row.testQty)) : {},
+                        deletedAt: new Date().toISOString()
+                    });
+                    if (history.deletedEquipment.length > 200) {
+                        history.deletedEquipment = history.deletedEquipment.slice(-200);
+                    }
+                    StorageManager.saveNow({ history: history });
+                }
+
                 section.rows.splice(rowIndex, 1);
                 Renderer.render();
                 if (typeof App !== 'undefined') App.persistMatrix();

@@ -66,24 +66,38 @@ const FlowEdges = {
             portCounts[toKey]   = (portCounts[toKey]   || 0) + 1;
         });
 
-        // Second pass: assign index per port
+        // Second pass: assign index per port, respecting stored portOrder
         var portAssigned = {};
+        // Group edges by port key so we can sort within each group
+        var portEdgeGroups = {};  // key: "nodeId-side-end" → [{edge, portKey, end}]
         visibleEdges.forEach(function(edge) {
             var ports = edgePorts[edge.id];
             if (!ports) return;
-
             var fromKey = edge.fromNodeId + '-' + ports.fromSide;
             var toKey   = edge.toNodeId + '-' + ports.toSide;
-
-            if (!portAssigned[fromKey]) portAssigned[fromKey] = 0;
-            if (!portAssigned[toKey])   portAssigned[toKey]   = 0;
-
-            portIndex[edge.id + '-from'] = portAssigned[fromKey]++;
-            portIndex[edge.id + '-to']   = portAssigned[toKey]++;
+            if (!portEdgeGroups[fromKey]) portEdgeGroups[fromKey] = [];
+            if (!portEdgeGroups[toKey]) portEdgeGroups[toKey] = [];
+            portEdgeGroups[fromKey].push({ edge: edge, end: 'from' });
+            portEdgeGroups[toKey].push({ edge: edge, end: 'to' });
+        });
+        // Sort each group by stored portOrder, then assign indices
+        Object.keys(portEdgeGroups).forEach(function(key) {
+            portEdgeGroups[key].sort(function(a, b) {
+                var oa = (a.edge.portOrder && a.edge.portOrder[key + '-' + a.end]) || 0;
+                var ob = (b.edge.portOrder && b.edge.portOrder[key + '-' + b.end]) || 0;
+                return oa - ob;
+            });
+            portEdgeGroups[key].forEach(function(item, idx) {
+                portIndex[item.edge.id + '-' + item.end] = idx;
+            });
         });
 
         // Draw edges with computed offsets
         var self = this;
+        this._lastPortCounts = portCounts;
+        this._lastPortIndex = portIndex;
+        this._lastEdgePorts = edgePorts;
+        this._lastPortEdgeGroups = portEdgeGroups;
         visibleEdges.forEach(function(edge) {
             var ports = edgePorts[edge.id];
             if (!ports) return;
@@ -674,6 +688,9 @@ const FlowEdges = {
         if (this._selectedEdgeId === edgeId) { this.deselectEdge(); return; }
         this.deselectEdge();
         this._selectedEdgeId = edgeId;
+        // Raise SVG layer above nodes so handles are clickable
+        var svg = document.getElementById('edgeLayer');
+        if (svg) svg.classList.add('edge-active');
         // Highlight the edge group
         var g = document.querySelector('.edge-group[data-edge-id="'+edgeId+'"]');
         if (g) g.classList.add('edge-selected');
@@ -682,6 +699,9 @@ const FlowEdges = {
 
     deselectEdge() {
         this._selectedEdgeId = null;
+        // Lower SVG layer back to normal
+        var svg = document.getElementById('edgeLayer');
+        if (svg) svg.classList.remove('edge-active');
         // Remove highlights
         document.querySelectorAll('.edge-selected').forEach(function(el){ el.classList.remove('edge-selected'); });
         // Remove handle elements
@@ -693,49 +713,183 @@ const FlowEdges = {
         if (!edge) return;
         var svg = document.getElementById('edgeLayer');
         if (!svg) return;
-
-        var fromPos = FlowNodes.getPortPosition(edge.fromNodeId, ports.fromSide, 0, 1);
-        var toPos = FlowNodes.getPortPosition(edge.toNodeId, ports.toSide, 0, 1);
-        if (!fromPos || !toPos) return;
-
         var self = this;
-        var sides = ['left','right','top','bottom'];
+
+        // Get actual computed positions for this edge's endpoints
+        var pc = this._lastPortCounts || {};
+        var pi = this._lastPortIndex || {};
+        var ep = this._lastEdgePorts || {};
+        var peg = this._lastPortEdgeGroups || {};
+
+        var fromKey = edge.fromNodeId + '-' + ports.fromSide;
+        var toKey = edge.toNodeId + '-' + ports.toSide;
+        var fromIdx = pi[edge.id + '-from'] || 0;
+        var toIdx = pi[edge.id + '-to'] || 0;
+        var fromTotal = pc[fromKey] || 1;
+        var toTotal = pc[toKey] || 1;
+
+        var fromPos = FlowNodes.getPortPosition(edge.fromNodeId, ports.fromSide, fromIdx, fromTotal);
+        var toPos = FlowNodes.getPortPosition(edge.toNodeId, ports.toSide, toIdx, toTotal);
+        if (!fromPos || !toPos) return;
 
         // Create from-handle
         var hFrom = document.createElementNS('http://www.w3.org/2000/svg','g');
         hFrom.classList.add('edge-handle');
         hFrom.dataset.end = 'from';
-        hFrom.innerHTML = '<circle cx="'+fromPos.x+'" cy="'+fromPos.y+'" r="7" class="edge-handle-dot"/>' +
-            '<text x="'+fromPos.x+'" y="'+(fromPos.y-12)+'" class="edge-handle-label">'+ports.fromSide+'</text>';
-        hFrom.style.cursor = 'grab';
+        var cFrom = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        cFrom.setAttribute('cx', fromPos.x); cFrom.setAttribute('cy', fromPos.y); cFrom.setAttribute('r', '9');
+        cFrom.classList.add('edge-handle-dot');
+        var tFrom = document.createElementNS('http://www.w3.org/2000/svg','text');
+        tFrom.setAttribute('x', fromPos.x); tFrom.setAttribute('y', fromPos.y - 14);
+        tFrom.classList.add('edge-handle-label'); tFrom.textContent = ports.fromSide;
+        hFrom.appendChild(cFrom); hFrom.appendChild(tFrom);
         svg.appendChild(hFrom);
 
         // Create to-handle
         var hTo = document.createElementNS('http://www.w3.org/2000/svg','g');
         hTo.classList.add('edge-handle');
         hTo.dataset.end = 'to';
-        hTo.innerHTML = '<circle cx="'+toPos.x+'" cy="'+toPos.y+'" r="7" class="edge-handle-dot"/>' +
-            '<text x="'+toPos.x+'" y="'+(toPos.y-12)+'" class="edge-handle-label">'+ports.toSide+'</text>';
-        hTo.style.cursor = 'grab';
+        var cTo = document.createElementNS('http://www.w3.org/2000/svg','circle');
+        cTo.setAttribute('cx', toPos.x); cTo.setAttribute('cy', toPos.y); cTo.setAttribute('r', '9');
+        cTo.classList.add('edge-handle-dot');
+        var tTo = document.createElementNS('http://www.w3.org/2000/svg','text');
+        tTo.setAttribute('x', toPos.x); tTo.setAttribute('y', toPos.y - 14);
+        tTo.classList.add('edge-handle-label'); tTo.textContent = ports.toSide;
+        hTo.appendChild(cTo); hTo.appendChild(tTo);
         svg.appendChild(hTo);
 
-        // Also show port indicators on connected nodes
+        // Show port side indicators
         this._showPortIndicators(edge.fromNodeId);
         this._showPortIndicators(edge.toNodeId);
 
-        // Drag handlers
-        [hFrom, hTo].forEach(function(handle) {
-            handle.addEventListener('mousedown', function(e) {
+        // Show slot indicators for multi-connection ports
+        this._showSlotIndicators(svg, edge, 'from', fromKey, ports.fromSide, fromIdx, fromTotal);
+        this._showSlotIndicators(svg, edge, 'to', toKey, ports.toSide, toIdx, toTotal);
+
+        // Drag handlers — bind on BOTH the g wrapper and the circle for maximum reliability
+        var handlePairs = [
+            { g: hFrom, circle: cFrom, text: tFrom, end: 'from', nodeId: edge.fromNodeId },
+            { g: hTo, circle: cTo, text: tTo, end: 'to', nodeId: edge.toNodeId }
+        ];
+        handlePairs.forEach(function(hp) {
+            function startDrag(e) {
                 if (e.button !== 0) return;
                 e.preventDefault(); e.stopPropagation();
-                var end = handle.dataset.end;
-                var nodeId = end === 'from' ? edge.fromNodeId : edge.toNodeId;
-                self._handleDrag = { edgeId: edgeId, end: end, nodeId: nodeId, handle: handle };
-                handle.style.cursor = 'grabbing';
+                self._handleDrag = { edgeId: edgeId, end: hp.end, nodeId: hp.nodeId, handle: hp.g, circle: hp.circle, text: hp.text };
+                hp.g.style.cursor = 'grabbing';
                 document.addEventListener('mousemove', self._onHandleMove);
                 document.addEventListener('mouseup', self._onHandleUp);
-            });
+            }
+            hp.g.addEventListener('mousedown', startDrag);
+            hp.circle.addEventListener('mousedown', startDrag);
         });
+    },
+
+    /** Show clickable slot dots for each connection sharing a port */
+    _showSlotIndicators(svg, selectedEdge, end, portKey, side, currentIdx, totalSlots) {
+        if (totalSlots <= 1) return;
+        var self = this;
+        var nodeId = end === 'from' ? selectedEdge.fromNodeId : selectedEdge.toNodeId;
+        var peg = this._lastPortEdgeGroups || {};
+        var group = peg[portKey] || [];
+
+        for (var i = 0; i < totalSlots; i++) {
+            var pos = FlowNodes.getPortPosition(nodeId, side, i, totalSlots);
+            if (!pos) continue;
+            var isCurrent = (i === currentIdx);
+
+            var g = document.createElementNS('http://www.w3.org/2000/svg','g');
+            g.classList.add('edge-handle', 'edge-slot-group');
+
+            // Slot dot
+            var dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+            dot.setAttribute('cx', pos.x);
+            dot.setAttribute('cy', pos.y);
+            dot.setAttribute('r', isCurrent ? '6' : '5');
+            dot.classList.add('edge-slot-dot');
+            if (isCurrent) dot.classList.add('slot-current');
+            g.appendChild(dot);
+
+            // Number label offset from the dot
+            var label = document.createElementNS('http://www.w3.org/2000/svg','text');
+            var lx = (side === 'left') ? pos.x - 16 : (side === 'right') ? pos.x + 16 : pos.x;
+            var ly = (side === 'top') ? pos.y - 12 : (side === 'bottom') ? pos.y + 16 : pos.y + 3;
+            label.setAttribute('x', lx);
+            label.setAttribute('y', ly);
+            label.classList.add('edge-slot-label');
+            label.textContent = (i + 1);
+            g.appendChild(label);
+
+            // Find the edge that occupies this slot and show its target node name
+            if (!isCurrent && group[i]) {
+                var siblingEdge = group[i].edge;
+                var siblingEnd = group[i].end;
+                var otherNodeId = siblingEnd === 'from' ? siblingEdge.toNodeId : siblingEdge.fromNodeId;
+                var otherNode = FlowData.getNode(otherNodeId);
+                if (otherNode) {
+                    var tip = document.createElementNS('http://www.w3.org/2000/svg','title');
+                    tip.textContent = 'Swap with → ' + otherNode.name;
+                    g.appendChild(tip);
+                }
+            } else if (isCurrent) {
+                var tip2 = document.createElementNS('http://www.w3.org/2000/svg','title');
+                tip2.textContent = 'Current position (' + (i+1) + '/' + totalSlots + ')';
+                g.appendChild(tip2);
+            }
+
+            // Click to swap
+            if (!isCurrent) {
+                g.style.cursor = 'pointer';
+                (function(slotIdx) {
+                    g.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        self._swapSlot(selectedEdge, end, portKey, currentIdx, slotIdx, group);
+                    });
+                })(i);
+            }
+
+            svg.appendChild(g);
+        }
+    },
+
+    /** Swap this edge's port order with the edge at targetIdx */
+    _swapSlot(selectedEdge, end, portKey, currentIdx, targetIdx, group) {
+        // Find the edge currently at targetIdx
+        var targetItem = group[targetIdx];
+        var currentItem = group[currentIdx];
+        if (!targetItem || !currentItem) return;
+
+        var targetEdge = targetItem.edge;
+        var currentEdge = currentItem.edge;
+
+        // Initialize portOrder objects
+        if (!currentEdge.portOrder) currentEdge.portOrder = {};
+        if (!targetEdge.portOrder) targetEdge.portOrder = {};
+
+        var currentOrderKey = portKey + '-' + currentItem.end;
+        var targetOrderKey = portKey + '-' + targetItem.end;
+
+        // Swap: give current edge the target's order value, and vice versa
+        var currentVal = currentEdge.portOrder[currentOrderKey] || currentIdx;
+        var targetVal = targetEdge.portOrder[targetOrderKey] || targetIdx;
+
+        currentEdge.portOrder[currentOrderKey] = targetVal;
+        targetEdge.portOrder[targetOrderKey] = currentVal;
+
+        FlowData.save();
+        var edgeId = selectedEdge.id;
+        this.deselectEdge();
+        this.render();
+
+        // Re-select after render
+        var self = this;
+        setTimeout(function() {
+            var edge = FlowData.getEdge(edgeId);
+            if (edge) {
+                var ports = FlowNodes.getBestPorts(edge.fromNodeId, edge.toNodeId, edge);
+                if (ports) self.selectEdge(edgeId, ports);
+            }
+        }, 50);
     },
 
     _showPortIndicators(nodeId) {
@@ -801,17 +955,69 @@ const FlowEdges = {
         var mx = e.clientX - cr.left, my = e.clientY - cr.top;
 
         // Move the handle dot visually
-        var circle = d.handle.querySelector('circle');
-        var label = d.handle.querySelector('text');
+        var circle = d.circle || d.handle.querySelector('circle');
+        var label = d.text || d.handle.querySelector('text');
         if (circle) { circle.setAttribute('cx', mx); circle.setAttribute('cy', my); }
-        if (label) { label.setAttribute('x', mx); label.setAttribute('y', my - 12); }
+        if (label) { label.setAttribute('x', mx); label.setAttribute('y', my - 14); }
 
-        // Highlight nearest port indicator
-        var best = FlowEdges._getNearestSide(d.nodeId, mx, my);
-        document.querySelectorAll('.edge-port-indicator[data-node-id="'+d.nodeId+'"]').forEach(function(ind) {
-            ind.classList.toggle('port-hover', ind.dataset.side === best.side);
+        // Draw live preview line from the anchored end to cursor
+        var edge = FlowData.getEdge(d.edgeId);
+        var svg = document.getElementById('edgeLayer');
+        if (edge && svg) {
+            var anchorNodeId = d.end === 'from' ? edge.toNodeId : edge.fromNodeId;
+            var anchorSide = d.end === 'from' ? (edge.toSide || 'left') : (edge.fromSide || 'right');
+            var anchorPos = FlowNodes.getPortPosition(anchorNodeId, anchorSide, 0, 1);
+
+            // Remove old preview line
+            var oldPreview = svg.querySelector('.edge-drag-preview');
+            if (oldPreview) oldPreview.remove();
+
+            if (anchorPos) {
+                var preview = document.createElementNS('http://www.w3.org/2000/svg','path');
+                var dx = Math.abs(mx - anchorPos.x), dy = Math.abs(my - anchorPos.y);
+                var cpOff = Math.max(40, dx * 0.35);
+                // Simple bezier from anchor to cursor
+                var cpAx = anchorSide === 'right' ? anchorPos.x + cpOff : anchorSide === 'left' ? anchorPos.x - cpOff : anchorPos.x;
+                var cpAy = anchorSide === 'top' ? anchorPos.y - cpOff : anchorSide === 'bottom' ? anchorPos.y + cpOff : anchorPos.y;
+                var pathD = 'M ' + anchorPos.x + ' ' + anchorPos.y + ' Q ' + cpAx + ' ' + cpAy + ', ' + mx + ' ' + my;
+                preview.setAttribute('d', pathD);
+                preview.classList.add('edge-drag-preview');
+                svg.appendChild(preview);
+            }
+        }
+
+        // Detect node under cursor using bounding box (not center distance)
+        var nearest = FlowEdges._getNodeUnderCursor(e.clientX, e.clientY, d.edgeId, d.end);
+
+        // Clear all node highlights
+        document.querySelectorAll('.flow-node').forEach(function(el) {
+            el.classList.remove('edge-drop-target');
         });
-        if (label) label.textContent = best.side;
+        document.querySelectorAll('.edge-port-indicator').forEach(function(ind) {
+            ind.classList.remove('port-hover');
+        });
+
+        if (nearest) {
+            var nodeEl = document.getElementById('node-' + nearest.nodeId);
+            if (nodeEl) nodeEl.classList.add('edge-drop-target');
+
+            var best = FlowEdges._getNearestSide(nearest.nodeId, mx, my);
+            // Count existing connections on this side to show slot number
+            var portKey = nearest.nodeId + '-' + best.side;
+            var count = (FlowEdges._lastPortCounts && FlowEdges._lastPortCounts[portKey]) || 0;
+            var slotNum = count + 1; // this edge would be added as next
+
+            var targetNode = FlowData.getNode(nearest.nodeId);
+            var isNewNode = String(nearest.nodeId) !== String(d.nodeId);
+            if (label) {
+                var nameStr = targetNode ? targetNode.name.substring(0, 10) : '';
+                label.textContent = isNewNode ? nameStr + ' #' + slotNum : best.side + ' #' + slotNum;
+            }
+            d._hoverNodeId = nearest.nodeId;
+        } else {
+            d._hoverNodeId = null;
+            if (label) label.textContent = '—';
+        }
     },
 
     _onHandleUp: function(e) {
@@ -820,37 +1026,121 @@ const FlowEdges = {
         document.removeEventListener('mousemove', FlowEdges._onHandleMove);
         document.removeEventListener('mouseup', FlowEdges._onHandleUp);
 
+        // Remove preview line
+        var svg = document.getElementById('edgeLayer');
+        if (svg) { var p = svg.querySelector('.edge-drag-preview'); if (p) p.remove(); }
+
+        // Clear node highlights
+        document.querySelectorAll('.flow-node').forEach(function(el) {
+            el.classList.remove('edge-drop-target');
+        });
+
         var canvas = document.getElementById('flowCanvas');
         if (!canvas) { FlowEdges._handleDrag = null; return; }
         var cr = canvas.getBoundingClientRect();
         var mx = e.clientX - cr.left, my = e.clientY - cr.top;
 
-        var best = FlowEdges._getNearestSide(d.nodeId, mx, my);
         var edge = FlowData.getEdge(d.edgeId);
-        if (edge) {
-            // Ensure both sides are stored (initialize from auto if needed)
-            if (!edge.fromSide || !edge.toSide) {
-                var autoPorts = FlowNodes.getBestPorts(edge.fromNodeId, edge.toNodeId);
-                if (autoPorts) {
-                    if (!edge.fromSide) edge.fromSide = autoPorts.fromSide;
-                    if (!edge.toSide) edge.toSide = autoPorts.toSide;
-                }
-            }
-            if (d.end === 'from') edge.fromSide = best.side;
-            else edge.toSide = best.side;
-            FlowData.save();
+        if (!edge) { FlowEdges._handleDrag = null; return; }
+
+        // Target node: only if cursor is actually over a node
+        var targetNodeId = d._hoverNodeId || d.nodeId;
+        var otherEnd = d.end === 'from' ? edge.toNodeId : edge.fromNodeId;
+
+        // Don't allow connecting a node to itself
+        if (String(targetNodeId) === String(otherEnd)) {
+            targetNodeId = d.nodeId;
         }
 
+        // If no node was hovered, keep original
+        if (!d._hoverNodeId) {
+            targetNodeId = d.nodeId;
+        }
+
+        var best = FlowEdges._getNearestSide(targetNodeId, mx, my);
+        var isReconnect = String(targetNodeId) !== String(d.nodeId);
+
+        // Initialize port sides
+        if (!edge.fromSide || !edge.toSide) {
+            var autoPorts = FlowNodes.getBestPorts(edge.fromNodeId, edge.toNodeId);
+            if (autoPorts) {
+                if (!edge.fromSide) edge.fromSide = autoPorts.fromSide;
+                if (!edge.toSide) edge.toSide = autoPorts.toSide;
+            }
+        }
+
+        if (isReconnect) {
+            if (d.end === 'from') {
+                edge.fromNodeId = targetNodeId;
+                edge.fromSide = best.side;
+            } else {
+                edge.toNodeId = targetNodeId;
+                edge.toSide = best.side;
+            }
+            // First in line at new node
+            if (!edge.portOrder) edge.portOrder = {};
+            var newPortKey = targetNodeId + '-' + best.side + '-' + d.end;
+            edge.portOrder[newPortKey] = -1;
+        } else {
+            if (d.end === 'from') edge.fromSide = best.side;
+            else edge.toSide = best.side;
+        }
+
+        FlowData.save();
         FlowEdges._handleDrag = null;
         FlowEdges.deselectEdge();
         FlowEdges.render();
-        // Re-select to show updated handles
-        if (edge) {
-            setTimeout(function() {
-                var ports = { fromSide: edge.fromSide, toSide: edge.toSide };
+
+        // Re-select
+        setTimeout(function() {
+            var e2 = FlowData.getEdge(d.edgeId);
+            if (e2) {
+                var ports = { fromSide: e2.fromSide, toSide: e2.toSide };
                 FlowEdges.selectEdge(d.edgeId, ports);
-            }, 50);
-        }
+            }
+        }, 50);
+    },
+
+    /** Detect if cursor is directly over a node element (bounding box hit test) */
+    _getNodeUnderCursor(clientX, clientY, edgeId, end) {
+        var edge = FlowData.getEdge(edgeId);
+        if (!edge) return null;
+        var otherEnd = end === 'from' ? edge.toNodeId : edge.fromNodeId;
+
+        var hit = null;
+        FlowData.nodes.forEach(function(node) {
+            if (node.id === otherEnd) return; // can't connect to self
+            var el = document.getElementById('node-' + node.id);
+            if (!el) return;
+            var r = el.getBoundingClientRect();
+            // Expand hit area by 12px for easier targeting
+            if (clientX >= r.left - 12 && clientX <= r.right + 12 &&
+                clientY >= r.top - 12 && clientY <= r.bottom + 12) {
+                hit = { nodeId: node.id };
+            }
+        });
+        return hit;
+    },
+
+    /** Find the nearest node using center distance (fallback) */
+    _getNearestNode(mx, my, edgeId, end) {
+        var edge = FlowData.getEdge(edgeId);
+        if (!edge) return null;
+        var otherEnd = end === 'from' ? edge.toNodeId : edge.fromNodeId;
+        var best = null;
+        var bestDist = 80;
+
+        FlowData.nodes.forEach(function(node) {
+            if (node.id === otherEnd) return;
+            var center = FlowNodes.getNodeCenter(node.id);
+            if (!center) return;
+            var dist = Math.sqrt(Math.pow(center.x - mx, 2) + Math.pow(center.y - my, 2));
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = { nodeId: node.id, dist: dist };
+            }
+        });
+        return best;
     },
 
     _getNearestSide(nodeId, mx, my) {

@@ -9,6 +9,10 @@ const TestManager = {
      */
     add(opts) {
         const o = opts || {};
+        // Ensure nextTestId is always above any existing id
+        const maxId = DataModel.testColumns.reduce((mx, t) => Math.max(mx, t.id || 0), 0);
+        if (DataModel.nextTestId <= maxId) DataModel.nextTestId = maxId + 1;
+
         DataModel.testColumns.push({
             id: DataModel.nextTestId++,
             uid: DataModel.generateUid(),
@@ -120,6 +124,46 @@ const TestManager = {
         }
 
         if (confirm('Are you sure you want to delete this test column?')) {
+            // Capture the activity before removal
+            const test = DataModel.testColumns.find(t => t.id === testId);
+
+            // Capture attached equipment for this activity
+            const equipment = [];
+            if (test) {
+                DataModel.sections.forEach(section => {
+                    section.rows.forEach(row => {
+                        const qty = row.testQty ? row.testQty[testId] : '';
+                        if (qty && qty !== '0' && String(qty).trim() !== '') {
+                            equipment.push({
+                                section: section.name,
+                                sectionId: section.id,
+                                itemNo: row.itemNo || '',
+                                description: row.description || '',
+                                partNo: row.partNo || '',
+                                qty: qty,
+                                workpack: row.workpack || '',
+                                stakeholder: row.stakeholder || ''
+                            });
+                        }
+                    });
+                });
+            }
+
+            // Log to history
+            if (test && typeof StorageManager !== 'undefined') {
+                const history = StorageManager.loadHistory();
+                history.deletedActivities.push({
+                    ...test,
+                    equipment: equipment,
+                    deletedAt: new Date().toISOString()
+                });
+                // Keep last 100 entries to avoid storage bloat
+                if (history.deletedActivities.length > 100) {
+                    history.deletedActivities = history.deletedActivities.slice(-100);
+                }
+                StorageManager.saveNow({ history: history });
+            }
+
             // Remove test column
             DataModel.testColumns = DataModel.testColumns.filter(t => t.id !== testId);
             
@@ -278,6 +322,7 @@ const TestManager = {
         typeOrder.forEach(type => {
             DataModel.testColumns
                 .filter(t => t.type === type)
+                .sort((a, b) => (a.workpack || '').localeCompare(b.workpack || ''))
                 .forEach(t => grouped.push(t));
         });
 

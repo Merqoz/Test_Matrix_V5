@@ -159,8 +159,27 @@ const DataModel = {
      * Generate a unique test activity ID like test-03
      */
     generateUid() {
+        // Collect all used UIDs: current + historical
         const existing = new Set(this.testColumns.map(t => t.uid).filter(Boolean));
-        let n = this.testColumns.length + 1;
+        try {
+            const hist = StorageManager.loadHistory();
+            if (hist && hist.deletedActivities) {
+                hist.deletedActivities.forEach(a => { if (a.uid) existing.add(a.uid); });
+            }
+        } catch(e) {}
+        // Find the highest existing numeric suffix
+        let maxNum = 0;
+        existing.forEach(uid => {
+            const m = uid.match(/^test-(\d+)$/);
+            if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+        });
+        this.testColumns.forEach(t => {
+            if (t.uid) {
+                const m = t.uid.match(/^test-(\d+)$/);
+                if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+            }
+        });
+        let n = maxNum + 1;
         let uid;
         do {
             uid = `test-${String(n).padStart(2, '0')}`;

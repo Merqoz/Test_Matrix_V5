@@ -40,7 +40,32 @@ const FlowApp = {
         // 8. Undo/Redo
         if (typeof UndoManager !== 'undefined') UndoManager.init();
 
+        // 9. Load page title
+        this.loadPageTitle();
+
         console.log('Activity Flow - Ready!');
+    },
+
+    /**
+     * Save the flow page title to localStorage
+     */
+    savePageTitle(val) {
+        try { localStorage.setItem('tem_page_title_flow', val); } catch(e) {}
+        document.title = (val || 'Activity Flow') + ' - Test Equipment Matrix';
+    },
+
+    /**
+     * Load the flow page title from localStorage
+     */
+    loadPageTitle() {
+        try {
+            var saved = localStorage.getItem('tem_page_title_flow');
+            if (saved !== null) {
+                var el = document.getElementById('flowPageTitle');
+                if (el) el.value = saved;
+                document.title = (saved || 'Activity Flow') + ' - Test Equipment Matrix';
+            }
+        } catch(e) {}
     },
 
     /**
@@ -644,6 +669,12 @@ const FlowApp = {
             reader.readAsText(file);
         };
         input.click();
+    },
+
+    // ═════ LIGHT MODE TOGGLE ══════════════════════════════
+
+    toggleLightMode() {
+        if (typeof Nav !== 'undefined') Nav.toggleTheme();
     },
 
     // ═════ WP CHIP LOCK ═════════════════════════════════

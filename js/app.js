@@ -52,7 +52,32 @@ const App = {
         // 10. Undo/Redo
         if (typeof UndoManager !== 'undefined') UndoManager.init();
 
+        // 11. Load page title
+        this.loadPageTitle();
+
         console.log('Test Equipment Matrix - Ready!');
+    },
+
+    /**
+     * Save the page title to localStorage
+     */
+    savePageTitle(val) {
+        try { localStorage.setItem('tem_page_title_matrix', val); } catch(e) {}
+        document.title = (val || 'Test Equipment Matrix') + (FlowData && FlowData.projectName ? ' — ' + FlowData.projectName : '');
+    },
+
+    /**
+     * Load the page title from localStorage
+     */
+    loadPageTitle() {
+        try {
+            var saved = localStorage.getItem('tem_page_title_matrix');
+            if (saved !== null) {
+                var el = document.getElementById('pageTitle');
+                if (el) el.value = saved;
+                document.title = (saved || 'Test Equipment Matrix');
+            }
+        } catch(e) {}
     },
 
     /**

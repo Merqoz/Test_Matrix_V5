@@ -337,12 +337,15 @@ body {
     letter-spacing: 0.5px;
     white-space: nowrap;
     position: sticky;
-    z-index: 15;
+    z-index: 10;
 }
 /* Main header row sticks at top */
-.matrix-table thead tr:first-child th { top: 0; z-index: 16; }
+.matrix-table thead tr:first-child th { top: 0; z-index: 10; }
 /* Filter row sticks below the main header */
-.matrix-table thead tr.filter-header-row th { top: 36px; z-index: 15; background: #151530; }
+.matrix-table thead tr.filter-header-row th { top: 36px; z-index: 10; background: #151530; }
+/* Frozen header cells always on top of everything */
+.freeze-mode thead tr:first-child th.col-freeze { z-index: 35; }
+.freeze-mode thead tr.filter-header-row th.col-freeze { z-index: 34; }
 
 /* === GROUP BY ACTIVITY === */
 .action-btn.group-btn {

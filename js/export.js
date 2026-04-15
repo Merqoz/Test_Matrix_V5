@@ -525,8 +525,11 @@ const ExportManager = {
                 await this._archiveByUidAndWrite(exportDir, logDir, uidPrefix, '.csv', `${readableName}.csv`, this._buildTestCSV(test, rows), stamp);
             }
 
+            // Clean up files for deleted test activities
+            const removed = await this._archiveDeletedTestFiles(exportDir, logDir, data.testColumns, stamp);
+
             const count = 2 + data.testColumns.length * 2;
-            this._toast(`✓ Saved ${count} files (old versions archived to log/)`);
+            this._toast(`✓ Saved ${count} files${removed > 0 ? ', archived ' + removed + ' deleted' : ''} (old → log/)`);
 
             // Push to JSONbin
             if (typeof SyncManager !== 'undefined') {
@@ -622,6 +625,54 @@ const ExportManager = {
 
         // Write new file with human-readable name
         await this._writeFile(rootDir, newFilename, content);
+    },
+
+    /**
+     * Scan the export root directory for test files whose UID no longer
+     * matches any current test column. Archive them to log/ with a
+     * DELETED tag so the folder only contains current activities.
+     * Returns the count of files archived.
+     */
+    async _archiveDeletedTestFiles(rootDir, logDir, currentTests, stamp) {
+        // Build a set of current UID prefixes (e.g. "test-01_", "test-02_")
+        const currentPrefixes = new Set();
+        currentTests.forEach(t => {
+            if (t.uid) currentPrefixes.add(this._safeName(t.uid) + '_');
+        });
+
+        let removed = 0;
+        try {
+            const toArchive = [];
+            for await (const [name, handle] of rootDir) {
+                if (handle.kind !== 'file') continue;
+                // Only process test files (start with "test-")
+                if (!name.startsWith('test-')) continue;
+                // Check if this file's UID prefix matches any current test
+                let matched = false;
+                for (const prefix of currentPrefixes) {
+                    if (name.startsWith(prefix)) { matched = true; break; }
+                }
+                if (!matched) {
+                    toArchive.push({ name, handle });
+                }
+            }
+
+            for (const entry of toArchive) {
+                try {
+                    const file = await entry.handle.getFile();
+                    const oldContent = await file.text();
+                    const dot = entry.name.lastIndexOf('.');
+                    const archiveName = dot > 0
+                        ? `${entry.name.substring(0, dot)}_DELETED_${stamp}${entry.name.substring(dot)}`
+                        : `${entry.name}_DELETED_${stamp}`;
+                    await this._writeFile(logDir, archiveName, oldContent);
+                    await rootDir.removeEntry(entry.name);
+                    removed++;
+                } catch (e) { console.warn('[Export] Could not archive deleted file:', entry.name, e); }
+            }
+        } catch (_) { /* directory iteration not supported */ }
+
+        return removed;
     },
 
     /* ══════════════════════════════════════════════════════
@@ -769,6 +820,30 @@ const ExportManager = {
             });
         }
 
+        // Deletion history
+        const history = (typeof StorageManager !== 'undefined') ? StorageManager.loadHistory() : null;
+        if (history) {
+            if (history.deletedActivities && history.deletedActivities.length > 0) {
+                csv += '\n--- Deleted Activities ---\n';
+                csv += 'ID,UID,Name,Type,Location,Workpack,Start Date,End Date,Equipment Count,Deleted At\n';
+                history.deletedActivities.forEach(a => {
+                    csv += [a.id || '', a.uid || '', a.name || '', a.type || '', a.location || '',
+                            a.workpack || '', a.startDate || '', a.endDate || '',
+                            a.equipment ? a.equipment.length : 0, a.deletedAt || '']
+                        .map(c => this._csvEscape(c)).join(',') + '\n';
+                });
+            }
+            if (history.deletedEquipment && history.deletedEquipment.length > 0) {
+                csv += '\n--- Deleted Equipment ---\n';
+                csv += 'Section,Item No,Description,Part No,QTY,Workpack,Stakeholder,Deleted At\n';
+                history.deletedEquipment.forEach(r => {
+                    csv += [r.section || '', r.itemNo || '', r.description || '', r.partNo || '',
+                            r.qty || '', r.workpack || '', r.stakeholder || '', r.deletedAt || '']
+                        .map(c => this._csvEscape(c)).join(',') + '\n';
+                });
+            }
+        }
+
         return csv;
     },
 
@@ -805,6 +880,12 @@ const ExportManager = {
                 locs[name] = e;
             });
             out.customLocations = locs;
+        }
+
+        // Deletion history
+        const history = (typeof StorageManager !== 'undefined') ? StorageManager.loadHistory() : null;
+        if (history) {
+            out.deletionHistory = history;
         }
 
         // Blender scene metadata

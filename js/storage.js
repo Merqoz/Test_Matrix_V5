@@ -98,6 +98,12 @@ const StorageManager = {
         return this.load()?.prefs ?? null;
     },
 
+    /** Shorthand: return just the history slice */
+    loadHistory() {
+        const h = this.load()?.history;
+        return h ?? { deletedActivities: [], deletedEquipment: [] };
+    },
+
     /* ── write (debounced) ─────────────────────────────── */
 
     /**
@@ -127,6 +133,11 @@ const StorageManager = {
         if (partial.prefs) {
             current.prefs = { ...current.prefs, ...partial.prefs };
         }
+        if (partial.history) {
+            if (!current.history) current.history = { deletedActivities: [], deletedEquipment: [] };
+            if (partial.history.deletedActivities) current.history.deletedActivities = partial.history.deletedActivities;
+            if (partial.history.deletedEquipment) current.history.deletedEquipment = partial.history.deletedEquipment;
+        }
 
         current._ts = new Date().toISOString();
 
@@ -148,6 +159,11 @@ const StorageManager = {
             if (partial.flow)   current.flow   = { ...current.flow,   ...partial.flow };
             if (partial.gantt)  current.gantt  = { ...current.gantt,  ...partial.gantt };
             if (partial.prefs)  current.prefs  = { ...current.prefs,  ...partial.prefs };
+            if (partial.history) {
+                if (!current.history) current.history = { deletedActivities: [], deletedEquipment: [] };
+                if (partial.history.deletedActivities) current.history.deletedActivities = partial.history.deletedActivities;
+                if (partial.history.deletedEquipment) current.history.deletedEquipment = partial.history.deletedEquipment;
+            }
             current._ts = new Date().toISOString();
             this._pending = current;
         }
@@ -333,6 +349,10 @@ const StorageManager = {
                 bars: {},       // { rowKey: [bar, bar, ...] }
                 nextBarId: 1,
                 mapPositions: {}
+            },
+            history: {
+                deletedActivities: [],  // [{...activity, equipment:[], deletedAt}]
+                deletedEquipment: []    // [{...row, section, deletedAt}]
             },
             prefs: {
                 freezeEnabled: false

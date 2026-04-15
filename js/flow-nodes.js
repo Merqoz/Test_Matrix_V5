@@ -156,7 +156,6 @@ const FlowNodes = {
         }
 
         const metaParts = [];
-        if (node.uid)       metaParts.push(`🏷 ${node.uid}`);
         if (node.location)  metaParts.push(`<span class="node-location-tag" style="color:${locColor?.color || '#778'}">${node.location}</span>`);
         if (node.workpack)  metaParts.push(`📦 ${node.workpack}`);
         if (node.startDate) metaParts.push(`📅 ${node.startDate}`);
@@ -363,6 +362,42 @@ const FlowNodes = {
     },
 
     /**
+     * Sort nodes within each lane by workpack order (WP03, WP04, WP05, ...),
+     * then by current Y position within the same workpack.
+     * Creates clean, grouped vertical layout.
+     */
+    sortByWorkpack() {
+        var self = this;
+        var step = self.NODE_HEIGHT + self.NODE_GAP;
+        var startY = 20;
+
+        // Build workpack order map from DataModel
+        var wpOrder = {};
+        if (typeof DataModel !== 'undefined' && DataModel.workpacks) {
+            DataModel.workpacks.forEach(function(wp, i) { wpOrder[wp] = i; });
+        }
+
+        FlowData.laneTypes.forEach(function(laneType) {
+            var nodes = FlowData.getNodesForLane(laneType);
+            if (nodes.length === 0) return;
+
+            nodes.sort(function(a, b) {
+                var wpA = wpOrder[a.workpack] !== undefined ? wpOrder[a.workpack] : 999;
+                var wpB = wpOrder[b.workpack] !== undefined ? wpOrder[b.workpack] : 999;
+                if (wpA !== wpB) return wpA - wpB;
+                return a.y - b.y;  // preserve relative order within same WP
+            });
+
+            nodes.forEach(function(node, i) { node.y = startY + i * step; });
+        });
+
+        FlowData.save();
+        FlowNodes.render();
+        FlowEdges.render();
+        if (typeof FlowApp !== 'undefined') FlowApp._applyWpFilter();
+    },
+
+    /**
      * Sync a node's type change back to matrix storage.
      */
     syncTypeToMatrix(nodeId, newType) {
@@ -414,7 +449,7 @@ const FlowNodes = {
         if (side === 'left' || side === 'right') {
             y = nr.top - cr.top + nr.height / 2;
             if (totalPorts && totalPorts > 1 && offsetIdx !== undefined) {
-                var portSpacing = Math.min(12, (nr.height - 8) / totalPorts);
+                var portSpacing = Math.min(18, (nr.height - 8) / totalPorts);
                 var totalSpan = portSpacing * (totalPorts - 1);
                 y = nr.top - cr.top + (nr.height / 2) - (totalSpan / 2) + (offsetIdx * portSpacing);
             }
@@ -422,7 +457,7 @@ const FlowNodes = {
         } else if (side === 'top' || side === 'bottom') {
             x = nr.left - cr.left + nr.width / 2;
             if (totalPorts && totalPorts > 1 && offsetIdx !== undefined) {
-                var hSpacing = Math.min(16, (nr.width - 8) / totalPorts);
+                var hSpacing = Math.min(22, (nr.width - 8) / totalPorts);
                 var hSpan = hSpacing * (totalPorts - 1);
                 x = nr.left - cr.left + (nr.width / 2) - (hSpan / 2) + (offsetIdx * hSpacing);
             }

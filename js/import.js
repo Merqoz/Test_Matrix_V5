@@ -169,6 +169,11 @@ const ImportManager = {
                 });
                 StorageManager.saveNow({ prefs: { customLocations: data.customLocations } });
             }
+
+            // Deletion history
+            if (data.deletionHistory && typeof data.deletionHistory === 'object') {
+                StorageManager.saveNow({ history: data.deletionHistory });
+            }
         }
 
         return true;

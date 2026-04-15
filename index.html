@@ -6,6 +6,8 @@
     <title>Test Equipment Matrix v2</title>
     <link rel="stylesheet" href="css/nav.css">
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/theme-dark.css">
+    <link rel="stylesheet" href="css/theme-light.css">
 </head>
 <body>
     <div class="container">
@@ -18,6 +20,10 @@
         <div class="matrix-header">
             <div class="header-top">
                 <div class="header-title">
+                    <div class="field-group page-title-group">
+                        <label>Page Title</label>
+                        <input type="text" id="pageTitle" placeholder="Test Equipment Matrix" style="width: 260px; font-size:16px; font-weight:700; letter-spacing:1px;" oninput="App.savePageTitle(this.value)">
+                    </div>
                     <div class="field-group">
                         <label>Doc No.</label>
                         <input type="text" id="docNo" placeholder="Enter Doc Number..." style="width: 160px;">
@@ -102,7 +108,7 @@
                     </button>
                 </div>
             </div>
-            <div class="main-title">TEST EQUIPMENT MATRIX v2</div>
+            <div class="main-title">TEST EQUIPMENT MATRIX</div>
             <div class="paste-hint">
                 <kbd>Ctrl+V</kbd> Paste from Excel &nbsp;·&nbsp;
                 <kbd>Tab</kbd> / <kbd>Enter</kbd> Navigate &nbsp;·&nbsp;
