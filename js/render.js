@@ -117,6 +117,7 @@ const Renderer = {
         visibleColumns.forEach((test, index) => {
             const th = document.createElement('th');
             th.className = 'test-column test-header';
+            if (test.parentId) th.classList.add('sub-activity-col');
             th.dataset.testId = test.id;
             th.dataset.type = test.type;
 
@@ -128,8 +129,8 @@ const Renderer = {
 
             th.innerHTML = this.getTestHeaderHTML(test);
             
-            // Add drag events
-            DragDropManager.attachEvents(th);
+            // Add drag events (only for main tests, not sub-activities)
+            if (!test.parentId) DragDropManager.attachEvents(th);
             
             tr.appendChild(th);
         });
@@ -196,12 +197,14 @@ const Renderer = {
         `;
 
         // Test column filter cells — show total qty sum
-        DataModel.testColumns.forEach((test, index) => {
+        const filterVisible = DataModel.getVisibleColumns();
+        filterVisible.forEach((test, index) => {
             const th = document.createElement('th');
             th.className = 'test-column filter-cell';
+            if (test.parentId) th.classList.add('sub-activity-col');
             th.dataset.testId = test.id;
 
-            const prevType = index > 0 ? DataModel.testColumns[index - 1].type : null;
+            const prevType = index > 0 ? filterVisible[index - 1].type : null;
             if (prevType && prevType !== test.type) th.classList.add('type-group-first');
 
             // Sum all quantities in this test column
@@ -224,6 +227,7 @@ const Renderer = {
      * Get HTML for test column header
      */
     getTestHeaderHTML(test) {
+        const isSub = !!test.parentId;
         const typeOptions = DataModel.testTypes.map(t => 
             `<option value="${t}" ${test.type === t ? 'selected' : ''}>${t}</option>`
         ).join('');
@@ -238,6 +242,73 @@ const Renderer = {
 
         const uid = test.uid || '';
 
+        // --- Sub-activity header ---
+        if (isSub) {
+            return `
+                <div class="sub-activity-connector"></div>
+                <div class="test-toolbar">
+                    <div class="col-arrows">
+                        <button class="col-arrow-btn" onclick="event.stopPropagation(); TestManager.moveSubLeft(${test.parentId}, ${test.id})" title="Move left">◀</button>
+                        <button class="col-arrow-btn" onclick="event.stopPropagation(); TestManager.moveSubRight(${test.parentId}, ${test.id})" title="Move right">▶</button>
+                    </div>
+                    <div class="test-toolbar-right">
+                        <button class="test-action-btn info-btn" data-test-id="${test.id}"
+                                onclick="event.stopPropagation(); ActivityDetails.open(${test.id})"
+                                title="Activity details">📝</button>
+                        <button class="test-action-btn col-filter-btn" data-test-id="${test.id}"
+                                onclick="event.stopPropagation(); FilterManager.toggleColumnFilter(${test.id})"
+                                title="Filter rows with data in this column">⧫</button>
+                        <div class="test-settings-wrapper">
+                            <button class="test-action-btn settings-btn" data-test-id="${test.id}"
+                                    onclick="event.stopPropagation(); TestManager.toggleSettingsPopup(${test.id})"
+                                    title="Settings">☰</button>
+                            <div class="test-settings-popup" id="settings-popup-${test.id}">
+                                <button class="test-action-btn uid-btn" data-test-id="${test.id}"
+                                        onclick="event.stopPropagation(); TestManager.showUidPopup(${test.id})"
+                                        title="${uid}">#</button>
+                                <button class="test-action-btn save-test" onclick="event.stopPropagation(); ExportManager.quickSaveTest(${test.id})" title="Quick save this sub-test">💾</button>
+                                <button class="test-action-btn export" onclick="event.stopPropagation(); ExportManager.openTestModal(${test.id})" title="Export this sub-test">↓</button>
+                                <button class="test-action-btn delete" onclick="event.stopPropagation(); TestManager.deleteSubActivity(${test.parentId}, ${test.id})" title="Delete sub-activity">×</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="test-name sub-activity-name" title="${uid} (sub of ${test.parentId})">
+                    <input type="text" value="${test.name}" onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'name', this.value)">
+                </div>
+                <div class="test-info">
+                    <label>Type</label>
+                    <select onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'type', this.value)">
+                        ${typeOptions}
+                    </select>
+                    <label>Location</label>
+                    <select onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'location', this.value)">
+                        ${locationOptions}
+                    </select>
+                    <label>Workpack</label>
+                    <select onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'workpack', this.value)">
+                        ${wpOptions}
+                    </select>
+                    <label>Start</label>
+                    <input type="date" value="${test.startDate}" onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'startDate', this.value)">
+                    <label>End</label>
+                    <input type="date" value="${test.endDate}" onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'endDate', this.value)">
+                </div>
+            `;
+        }
+
+        // --- Main activity header ---
+        const subCount = (test.subActivities && test.subActivities.length) || 0;
+        const isExpanded = DataModel.isSubExpanded(test.id);
+        const subToggleBtn = subCount > 0
+            ? `<button class="test-action-btn sub-toggle-btn ${isExpanded ? 'expanded' : ''}" data-test-id="${test.id}"
+                    onclick="event.stopPropagation(); TestManager.toggleSubActivities(${test.id})"
+                    title="${isExpanded ? 'Hide' : 'Show'} ${subCount} sub-activit${subCount === 1 ? 'y' : 'ies'}">
+                    <span class="sub-toggle-icon">${isExpanded ? '◂' : '▸'}</span>
+                    <span class="sub-toggle-count">${subCount}</span>
+               </button>`
+            : '';
+
         return `
             <div class="test-toolbar">
                 <div class="col-arrows">
@@ -248,15 +319,26 @@ const Renderer = {
                     <button class="test-action-btn info-btn" data-test-id="${test.id}"
                             onclick="event.stopPropagation(); ActivityDetails.open(${test.id})"
                             title="Activity details">📝</button>
-                    <button class="test-action-btn uid-btn" data-test-id="${test.id}"
-                            onclick="event.stopPropagation(); TestManager.showUidPopup(${test.id})"
-                            title="${uid}">#</button>
                     <button class="test-action-btn col-filter-btn" data-test-id="${test.id}"
                             onclick="event.stopPropagation(); FilterManager.toggleColumnFilter(${test.id})"
                             title="Filter rows with data in this column">⧫</button>
-                    <button class="test-action-btn save-test" onclick="event.stopPropagation(); ExportManager.quickSaveTest(${test.id})" title="Quick save this test">💾</button>
-                    <button class="test-action-btn export" onclick="event.stopPropagation(); ExportManager.openTestModal(${test.id})" title="Export this test">↓</button>
-                    <button class="test-action-btn delete" onclick="event.stopPropagation(); TestManager.delete(${test.id})" title="Delete test">×</button>
+                    ${subToggleBtn}
+                    <div class="test-settings-wrapper">
+                        <button class="test-action-btn settings-btn" data-test-id="${test.id}"
+                                onclick="event.stopPropagation(); TestManager.toggleSettingsPopup(${test.id})"
+                                title="Settings">☰</button>
+                        <div class="test-settings-popup" id="settings-popup-${test.id}">
+                            <button class="test-action-btn uid-btn" data-test-id="${test.id}"
+                                    onclick="event.stopPropagation(); TestManager.showUidPopup(${test.id})"
+                                    title="${uid}">#</button>
+                            <button class="test-action-btn save-test" onclick="event.stopPropagation(); ExportManager.quickSaveTest(${test.id})" title="Quick save this test">💾</button>
+                            <button class="test-action-btn export" onclick="event.stopPropagation(); ExportManager.openTestModal(${test.id})" title="Export this test">↓</button>
+                            <button class="test-action-btn delete" onclick="event.stopPropagation(); TestManager.delete(${test.id})" title="Delete test">×</button>
+                            <button class="test-action-btn add-btn" data-test-id="${test.id}"
+                                    onclick="event.stopPropagation(); TestManager.addSubActivity(${test.id})"
+                                    title="Add sub-activity">+</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="test-name" title="${uid}">
@@ -452,11 +534,11 @@ const Renderer = {
 
         const freezeClass = DataModel.freezeEnabled ? 'col-freeze' : '';
 
-        // Auto-calculate QTY sum from all test quantities
+        // Auto-calculate QTY sum from main test quantities only (exclude sub-activities)
         let qtySum = 0;
         if (row.testQty) {
-            Object.values(row.testQty).forEach(v => {
-                const n = parseFloat(v);
+            DataModel.testColumns.forEach(t => {
+                const n = parseFloat(row.testQty[t.id]);
                 if (!isNaN(n)) qtySum += n;
             });
         }
@@ -502,13 +584,14 @@ const Renderer = {
             </td>
         `;
 
-        // Test quantity cells — only visible columns
+        // Test quantity cells — only visible columns (includes expanded sub-activities)
         const boundaries = this.getGroupBoundaries();
         DataModel.getVisibleColumns().forEach((test, index) => {
             const testQty = row.testQty[test.id] || '';
             const groupClass = boundaries.has(index) ? 'type-group-first' : '';
+            const subClass = test.parentId ? 'sub-activity-col' : '';
             html += `
-                <td class="test-column ${groupClass}">
+                <td class="test-column ${groupClass} ${subClass}">
                     <input type="text" class="qty-input" value="${testQty}" placeholder="0" 
                         onchange="SectionManager.updateTestQty('${section.id}', ${rowIndex}, ${test.id}, this.value)">
                 </td>

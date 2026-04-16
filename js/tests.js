@@ -167,10 +167,12 @@ const TestManager = {
             // Remove test column
             DataModel.testColumns = DataModel.testColumns.filter(t => t.id !== testId);
             
-            // Remove test quantities from all rows
+            // Remove test quantities from all rows (including sub-activity IDs)
+            const subIds = (test && test.subActivities) ? test.subActivities.map(s => s.id) : [];
             DataModel.sections.forEach(section => {
                 section.rows.forEach(row => {
                     delete row.testQty[testId];
+                    subIds.forEach(sid => delete row.testQty[sid]);
                 });
             });
             
@@ -255,6 +257,33 @@ const TestManager = {
     },
 
     /**
+     * Toggle the settings popup for a test column
+     */
+    toggleSettingsPopup(testId) {
+        const popup = document.getElementById(`settings-popup-${testId}`);
+        if (!popup) return;
+
+        // Close all other open settings popups first
+        document.querySelectorAll('.test-settings-popup.open').forEach(p => {
+            if (p !== popup) p.classList.remove('open');
+        });
+
+        popup.classList.toggle('open');
+
+        // Close popup when clicking outside
+        if (popup.classList.contains('open')) {
+            const closeHandler = (e) => {
+                if (!popup.contains(e.target) && !e.target.closest(`.settings-btn[data-test-id="${testId}"]`)) {
+                    popup.classList.remove('open');
+                    document.removeEventListener('click', closeHandler, true);
+                }
+            };
+            // Use setTimeout to avoid the current click from immediately closing
+            setTimeout(() => document.addEventListener('click', closeHandler, true), 0);
+        }
+    },
+
+    /**
      * Show uid edit popup for a test
      */
     showUidPopup(testId) {
@@ -334,6 +363,136 @@ const TestManager = {
         DataModel.testColumns = grouped;
         Renderer.render();
         if (typeof App !== 'undefined') App.persistMatrix();
+    },
+
+    // =============================================
+    // SUB-ACTIVITY MANAGEMENT
+    // =============================================
+
+    /**
+     * Add a sub-activity to a parent test (duplicates parent data by default)
+     */
+    addSubActivity(parentId) {
+        const parent = DataModel.testColumns.find(t => t.id === parentId);
+        if (!parent) return;
+
+        // Ensure nextTestId is above all existing IDs
+        let maxId = DataModel.testColumns.reduce((mx, t) => Math.max(mx, t.id || 0), 0);
+        DataModel.testColumns.forEach(t => {
+            if (t.subActivities) t.subActivities.forEach(s => { maxId = Math.max(maxId, s.id || 0); });
+        });
+        if (DataModel.nextTestId <= maxId) DataModel.nextTestId = maxId + 1;
+
+        if (!parent.subActivities) parent.subActivities = [];
+
+        const subId = DataModel.nextTestId++;
+        const subNum = parent.subActivities.length + 1;
+
+        parent.subActivities.push({
+            id: subId,
+            parentId: parentId,
+            uid: DataModel.generateUid(),
+            name: `${parent.name} #${subNum}`,
+            type: parent.type,
+            location: parent.location,
+            workpack: parent.workpack,
+            startDate: parent.startDate,
+            endDate: parent.endDate
+        });
+
+        // Copy parent test quantities to sub-activity for each row
+        DataModel.sections.forEach(section => {
+            section.rows.forEach(row => {
+                if (row.testQty && row.testQty[parentId]) {
+                    row.testQty[subId] = row.testQty[parentId];
+                }
+            });
+        });
+
+        // Auto-expand so the new sub is visible
+        if (!DataModel.isSubExpanded(parentId)) {
+            DataModel.toggleSubExpanded(parentId);
+        }
+
+        // Close settings popup
+        const popup = document.getElementById(`settings-popup-${parentId}`);
+        if (popup) popup.classList.remove('open');
+
+        Renderer.render();
+        if (typeof App !== 'undefined') App.persistMatrix();
+    },
+
+    /**
+     * Toggle sub-activity visibility for a parent test
+     */
+    toggleSubActivities(parentId) {
+        DataModel.toggleSubExpanded(parentId);
+        Renderer.render();
+    },
+
+    /**
+     * Delete a sub-activity
+     */
+    deleteSubActivity(parentId, subId) {
+        const parent = DataModel.testColumns.find(t => t.id === parentId);
+        if (!parent || !parent.subActivities) return;
+
+        if (confirm('Delete this sub-activity?')) {
+            parent.subActivities = parent.subActivities.filter(s => s.id !== subId);
+
+            // Clean up testQty references
+            DataModel.sections.forEach(section => {
+                section.rows.forEach(row => {
+                    delete row.testQty[subId];
+                });
+            });
+
+            Renderer.render();
+            if (typeof App !== 'undefined') App.persistMatrix();
+        }
+    },
+
+    /**
+     * Update a field on a sub-activity
+     */
+    updateSubField(parentId, subId, field, value) {
+        const parent = DataModel.testColumns.find(t => t.id === parentId);
+        if (!parent || !parent.subActivities) return;
+        const sub = parent.subActivities.find(s => s.id === subId);
+        if (sub && sub[field] !== value) {
+            sub[field] = value;
+            if (typeof App !== 'undefined') App.persistMatrix();
+        }
+    },
+
+    /**
+     * Move sub-activity left within parent's sub-array
+     */
+    moveSubLeft(parentId, subId) {
+        const parent = DataModel.testColumns.find(t => t.id === parentId);
+        if (!parent || !parent.subActivities) return;
+        const idx = parent.subActivities.findIndex(s => s.id === subId);
+        if (idx > 0) {
+            const [moved] = parent.subActivities.splice(idx, 1);
+            parent.subActivities.splice(idx - 1, 0, moved);
+            Renderer.render();
+            if (typeof App !== 'undefined') App.persistMatrix();
+        }
+    },
+
+    /**
+     * Move sub-activity right within parent's sub-array
+     */
+    moveSubRight(parentId, subId) {
+        const parent = DataModel.testColumns.find(t => t.id === parentId);
+        if (!parent || !parent.subActivities) return;
+        const idx = parent.subActivities.findIndex(s => s.id === subId);
+        if (idx >= 0 && idx < parent.subActivities.length - 1) {
+            const [moved] = parent.subActivities.splice(idx, 1);
+            parent.subActivities.splice(idx + 1, 0, moved);
+            Renderer.render();
+            if (typeof App !== 'undefined') App.persistMatrix();
+        }
     },
 
     /**

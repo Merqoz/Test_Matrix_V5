@@ -119,10 +119,10 @@ const SectionManager = {
         const section = DataModel.getSection(sectionId);
         if (section && section.rows[rowIndex]) {
             section.rows[rowIndex].testQty[testId] = value;
-            // Auto-recalculate QTY sum
+            // Auto-recalculate QTY sum (main tests only, exclude sub-activities)
             let sum = 0;
-            Object.values(section.rows[rowIndex].testQty).forEach(v => {
-                const n = parseFloat(v);
+            DataModel.testColumns.forEach(t => {
+                const n = parseFloat(section.rows[rowIndex].testQty[t.id]);
                 if (!isNaN(n)) sum += n;
             });
             section.rows[rowIndex].qty = sum > 0 ? String(sum) : '';

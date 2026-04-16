@@ -397,3 +397,29 @@ body.light-theme { color-scheme: light; }
 .light-theme .header-title input::placeholder { color: #94a3b8 !important; }
 .light-theme .header-title label { color: #2563eb !important; }
 .light-theme .page-title-group input { color: #0f172a !important; }
+
+/* Settings popup — light theme */
+.light-theme .test-settings-popup {
+    background: linear-gradient(160deg, #f8fafc 0%, #f1f5f9 100%) !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 0 12px rgba(100, 116, 139, 0.08) !important;
+}
+
+/* Sub-activity columns — light theme */
+.light-theme .sub-activity-connector {
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.5) 0%, rgba(124, 58, 237, 0.1) 100%) !important;
+}
+.light-theme .sub-activity-name input {
+    color: #6d28d9 !important;
+    border-bottom-color: rgba(124, 58, 237, 0.3) !important;
+}
+.light-theme .sub-activity-name input:focus {
+    border-bottom-color: #7c3aed !important;
+    text-shadow: none !important;
+}
+.light-theme th.sub-activity-col.test-header {
+    background: linear-gradient(180deg, rgba(124, 58, 237, 0.06) 0%, transparent 100%) !important;
+}
+.light-theme td.sub-activity-col {
+    background: rgba(124, 58, 237, 0.02) !important;
+}

@@ -637,6 +637,127 @@ th.type-group-first {
     font-size: 10px;
 }
 
+/* === SETTINGS HAMBURGER BUTTON & POPUP === */
+.test-settings-wrapper {
+    position: relative;
+}
+
+.test-action-btn.settings-btn {
+    background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1;
+}
+
+.test-action-btn.settings-btn:hover {
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+}
+
+.test-settings-popup {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: linear-gradient(160deg, #1e1e3a 0%, #2a2a4a 100%);
+    border: 1px solid rgba(100, 116, 139, 0.5);
+    border-radius: 8px;
+    padding: 6px;
+    gap: 5px;
+    flex-direction: column;
+    z-index: 100;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 12px rgba(100, 116, 139, 0.15);
+    min-width: 32px;
+    align-items: center;
+}
+
+.test-settings-popup.open {
+    display: flex;
+}
+
+.test-settings-popup .test-action-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.test-action-btn.add-btn {
+    background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 1;
+}
+
+/* === SUB-ACTIVITY TOGGLE BUTTON === */
+.test-action-btn.sub-toggle-btn {
+    background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+    width: auto;
+    min-width: 22px;
+    padding: 0 4px;
+    gap: 2px;
+    font-size: 10px;
+    position: relative;
+}
+
+.test-action-btn.sub-toggle-btn.expanded {
+    background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 100%);
+    box-shadow: 0 0 8px rgba(167, 139, 250, 0.5);
+}
+
+.sub-toggle-icon {
+    font-size: 9px;
+    line-height: 1;
+}
+
+.sub-toggle-count {
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* === SUB-ACTIVITY COLUMN STYLES === */
+.sub-activity-col {
+    position: relative;
+}
+
+.sub-activity-col.test-header {
+    border-top: 2px solid rgba(167, 139, 250, 0.6) !important;
+}
+
+.sub-activity-connector {
+    position: absolute;
+    top: 0;
+    left: -1px;
+    width: 3px;
+    height: 100%;
+    background: linear-gradient(180deg, rgba(167, 139, 250, 0.8) 0%, rgba(167, 139, 250, 0.2) 100%);
+    border-radius: 0 0 2px 2px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.sub-activity-name input {
+    color: #c4b5fd !important;
+    font-style: italic;
+    border-bottom-color: rgba(167, 139, 250, 0.4) !important;
+}
+
+.sub-activity-name input:focus {
+    border-bottom-color: #a78bfa !important;
+    text-shadow: 0 0 10px rgba(167, 139, 250, 0.5) !important;
+}
+
+/* Subtle background tint for sub-activity columns */
+th.sub-activity-col.test-header {
+    background: linear-gradient(180deg, rgba(167, 139, 250, 0.08) 0%, transparent 100%) !important;
+}
+
+td.sub-activity-col {
+    background: rgba(167, 139, 250, 0.03);
+}
+
 /* === TEST INFO DROPDOWNS === */
 .test-info {
     font-size: 9px;

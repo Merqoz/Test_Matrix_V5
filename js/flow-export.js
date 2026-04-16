@@ -504,8 +504,28 @@ const FlowExport = {
             // ══════════════════════════════════
             // PAGE 4 — Activity Summary Table
             // ══════════════════════════════════
+
+            // Sanitize strings for jsPDF (Helvetica can't render en-dash, em-dash, smart quotes, etc.)
+            function pdfSafe(str) {
+                if (!str) return '';
+                return str
+                    .replace(/[\u2013\u2014]/g, '-')   // en-dash, em-dash → hyphen
+                    .replace(/[\u2018\u2019]/g, "'")    // smart single quotes
+                    .replace(/[\u201C\u201D]/g, '"')    // smart double quotes
+                    .replace(/\u2026/g, '...')           // ellipsis
+                    .replace(/[^\x00-\x7F]/g, function(ch) {
+                        // Keep common accented chars (Latin-1 Supplement), replace others
+                        var code = ch.charCodeAt(0);
+                        return (code >= 0x00C0 && code <= 0x00FF) ? ch : '?';
+                    });
+            }
+
+            // Filter: only show activities whose lane (type) is open in the flow chart
             var visibleNodes = FlowData.nodes.filter(function(n) {
-                return typeof DataModel !== 'undefined' ? DataModel.isActivityVisible(n.id) : true;
+                if (typeof DataModel !== 'undefined' && !DataModel.isActivityVisible(n.id)) return false;
+                // Respect lane visibility — if a lane is hidden, exclude its activities
+                if (FlowData.hiddenLanes && FlowData.hiddenLanes[n.type]) return false;
+                return true;
             });
 
             pdf.addPage('a3', 'landscape');
@@ -530,7 +550,6 @@ const FlowExport = {
             drawTableHeader(tableX, headerY, colWidths, headers, rowH);
 
             var curY = headerY + rowH;
-            var maxRows = Math.min(visibleNodes.length, 50);
             var typeColors = {
                 'FAT':   [0, 212, 255],
                 'EFAT':  [16, 185, 129],
@@ -540,18 +559,51 @@ const FlowExport = {
                 'SRT':   [236, 72, 153]
             };
 
-            for (var ri = 0; ri < maxRows; ri++) {
-                var n = visibleNodes[ri];
+            // Build flat list of activities + sub-activities for PDF rendering
+            var flatActivities = [];
+            var subCount = 0;
+            for (var fi = 0; fi < visibleNodes.length; fi++) {
+                var node = visibleNodes[fi];
+                flatActivities.push({ data: node, isSub: false });
+                // Check if this node has sub-activities in DataModel
+                if (typeof DataModel !== 'undefined') {
+                    var mainTest = DataModel.testColumns.find(function(t) { return t.id === node.id; });
+                    if (mainTest && mainTest.subActivities && mainTest.subActivities.length > 0) {
+                        mainTest.subActivities.forEach(function(sub) {
+                            flatActivities.push({ data: sub, isSub: true, parentName: node.name });
+                            subCount++;
+                        });
+                    }
+                }
+            }
+
+            var rowCounter = 0;
+
+            for (var ri = 0; ri < flatActivities.length; ri++) {
+                var entry = flatActivities[ri];
+                var n = entry.data;
 
                 if (curY + rowH > pageH - 15) {
                     pdf.addPage('a3', 'landscape');
                     fillBg(T.tableBg);
-                    curY = 15;
+
+                    // Continuation header
+                    pdf.setFont('helvetica', 'bold');
+                    pdf.setFontSize(14);
+                    setColor(T.headingColor);
+                    pdf.text('Activity Summary (continued)', m, 12);
+                    setDraw(T.ruleColor);
+                    pdf.setLineWidth(0.2);
+                    pdf.line(m, 14.5, pageW - m, 14.5);
+
+                    curY = 18;
                     drawTableHeader(tableX, curY, colWidths, headers, rowH);
                     curY += rowH;
+                    rowCounter = 0;
                 }
 
-                if (ri % 2 === 0) {
+                // Alternating row background
+                if (rowCounter % 2 === 0) {
                     setFill(T.rowAltBg);
                     pdf.rect(tableX, curY, totalW, rowH, 'F');
                 }
@@ -560,9 +612,12 @@ const FlowExport = {
                 pdf.setLineWidth(0.15);
                 pdf.line(tableX, curY + rowH, tableX + totalW, curY + rowH);
 
-                var cells = [n.name || '', n.type || '', n.location || '', n.workpack || '', n.startDate || '', n.endDate || ''];
-                pdf.setFont('helvetica', 'normal');
-                pdf.setFontSize(9);
+                var actName = pdfSafe(n.name || '');
+                if (entry.isSub) actName = '       ' + actName;
+
+                var cells = [actName, n.type || '', pdfSafe(n.location || ''), pdfSafe(n.workpack || ''), n.startDate || '', n.endDate || ''];
+                pdf.setFont('helvetica', entry.isSub ? 'italic' : 'normal');
+                pdf.setFontSize(entry.isSub ? 8 : 9);
                 var rx = tableX;
                 cells.forEach(function(val, ci) {
                     if (ci === 1 && typeColors[val]) {
@@ -570,9 +625,10 @@ const FlowExport = {
                         pdf.setTextColor(tc[0], tc[1], tc[2]);
                         pdf.setFont('helvetica', 'bold');
                     } else {
-                        setColor(T.cellText);
-                        pdf.setFont('helvetica', 'normal');
+                        setColor(entry.isSub ? [150, 150, 160] : T.cellText);
+                        pdf.setFont('helvetica', entry.isSub ? 'italic' : 'normal');
                     }
+                    pdf.setFontSize(entry.isSub ? 8 : 9);
                     var maxChars = Math.floor(colWidths[ci] / 2.2);
                     var display = val.length > maxChars ? val.substring(0, maxChars - 1) + '\u2026' : val;
                     pdf.text(display, rx + 3, curY + 6.5);
@@ -580,14 +636,16 @@ const FlowExport = {
                 });
 
                 curY += rowH;
+                rowCounter++;
             }
 
-            if (visibleNodes.length > maxRows) {
-                pdf.setFontSize(9);
-                setColor(T.metaColor);
-                pdf.setFont('helvetica', 'italic');
-                pdf.text('Showing ' + maxRows + ' of ' + visibleNodes.length + ' activities', tableX, curY + 8);
-            }
+            // Summary footer
+            pdf.setFontSize(9);
+            setColor(T.metaColor);
+            pdf.setFont('helvetica', 'italic');
+            var summaryText = visibleNodes.length + ' activities';
+            if (subCount > 0) summaryText += ' + ' + subCount + ' sub-activities';
+            pdf.text(summaryText, tableX, curY + 8);
 
             // ══════════════════════════════════
             // PAGE 4 — Connections & Transfers
@@ -658,10 +716,10 @@ const FlowExport = {
                     pdf.line(m, eCurY + thisRowH, m + eTotalW, eCurY + thisRowH);
 
                     var eCells = [
-                        fromNode ? fromNode.name : '?',
-                        toNode ? toNode.name : '?',
-                        e.label || '\u2014',
-                        transferStr
+                        pdfSafe(fromNode ? fromNode.name : '?'),
+                        pdfSafe(toNode ? toNode.name : '?'),
+                        pdfSafe(e.label || '-'),
+                        pdfSafe(transferStr)
                     ];
                     pdf.setFont('helvetica', 'normal');
                     pdf.setFontSize(9);
@@ -769,7 +827,9 @@ const FlowExport = {
 
             // -- Slide 3: Activity summary table ---------------
             var visibleNodes = FlowData.nodes.filter(function(n) {
-                return typeof DataModel !== 'undefined' ? DataModel.isActivityVisible(n.id) : true;
+                if (typeof DataModel !== 'undefined' && !DataModel.isActivityVisible(n.id)) return false;
+                if (FlowData.hiddenLanes && FlowData.hiddenLanes[n.type]) return false;
+                return true;
             });
 
             var s3 = pres.addSlide();
@@ -789,18 +849,36 @@ const FlowExport = {
 
             // Default cell text color for theme
             var cellTxt = isLight ? '1e293b' : 'c8cdd7';
+            var subTxt  = isLight ? '6d28d9' : 'a78bfa';
 
-            var dataRows = visibleNodes.slice(0, 25).map(function(n, i) {
+            // Build flat list with sub-activities
+            var pptxFlat = [];
+            visibleNodes.forEach(function(n) {
+                pptxFlat.push({ data: n, isSub: false });
+                if (typeof DataModel !== 'undefined') {
+                    var mainTest = DataModel.testColumns.find(function(t) { return t.id === n.id; });
+                    if (mainTest && mainTest.subActivities && mainTest.subActivities.length > 0) {
+                        mainTest.subActivities.forEach(function(sub) {
+                            pptxFlat.push({ data: sub, isSub: true });
+                        });
+                    }
+                }
+            });
+
+            var dataRows = pptxFlat.map(function(entry, i) {
+                var n = entry.data;
                 var bg = i % 2 === 0 ? P.rowAlt : P.rowNorm;
                 var typeColor = FlowData.colors[n.type]
                     ? FlowData.colors[n.type].primary.replace('#', '') : '888888';
                 function cell(txt, extra) {
-                    var opts = { fontSize: 10, fontFace: 'Calibri', fill: { color: bg }, color: cellTxt };
+                    var opts = { fontSize: entry.isSub ? 9 : 10, fontFace: 'Calibri', fill: { color: bg }, color: entry.isSub ? subTxt : cellTxt };
+                    if (entry.isSub) opts.italic = true;
                     if (extra) { for (var k in extra) opts[k] = extra[k]; }
                     return { text: txt || '', options: opts };
                 }
+                var actName = entry.isSub ? '  └ ' + (n.name || '') : (n.name || '');
                 return [
-                    cell(n.name),
+                    cell(actName),
                     cell(n.type, { color: typeColor, bold: true }),
                     cell(n.location),
                     cell(n.workpack),
@@ -818,8 +896,9 @@ const FlowExport = {
                 rowH: 0.35, autoPage: true, autoPageRepeatHeader: true
             });
 
-            if (visibleNodes.length > 25) {
-                s3.addText('Showing 25 of ' + visibleNodes.length + ' activities', {
+            var pptxSubCount = pptxFlat.filter(function(e){return e.isSub;}).length;
+            if (pptxSubCount > 0) {
+                s3.addText(visibleNodes.length + ' activities + ' + pptxSubCount + ' sub-activities', {
                     x: 0.5, y: 6.8, w: 8, h: 0.4,
                     fontSize: 10, fontFace: 'Calibri', color: '999999', italic: true
                 });

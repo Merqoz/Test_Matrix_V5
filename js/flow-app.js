@@ -96,6 +96,10 @@ const FlowApp = {
         const savedNextEdge  = (f && f.nextEdgeId) ? f.nextEdgeId : 1;
 
         if (m && m.testColumns && m.testColumns.length > 0) {
+            // Keep DataModel in sync so exports can access sub-activities
+            DataModel.testColumns = m.testColumns;
+            if (m.sections) DataModel.sections = m.sections;
+
             // Build nodes from matrix testColumns + flow positions
             FlowData.nodes = m.testColumns.map((test, index) => ({
                 id: test.id,
@@ -452,6 +456,10 @@ const FlowApp = {
 
         const m = doc.matrix;
         if (!m.testColumns) return;
+
+        // Keep DataModel in sync so exports can access sub-activities
+        DataModel.testColumns = m.testColumns;
+        if (m.sections) DataModel.sections = m.sections;
 
         // Build positions lookup from current nodes
         const posMap = {};

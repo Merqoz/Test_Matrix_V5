@@ -235,6 +235,7 @@ const ExportManager = {
         if (!this._rootHandle || !this._hasFileSystemAPI()) {
             this._download(this._buildMatrixCSV(data), `Matrix_${projName}_${stamp}.csv`, 'text/csv;charset=utf-8;');
             this._download(this._buildMatrixJSON(data), `Matrix_${projName}_${stamp}.json`, 'application/json');
+            this._download(this._buildMatrixNiceXLS(data), `Matrix_Nice_theme_${projName}_${stamp}.xls`, 'application/vnd.ms-excel');
             ModalManager.close('projectExportModal');
             return;
         }
@@ -245,6 +246,7 @@ const ExportManager = {
 
             await this._writeFile(logDir, `Matrix_${projName}_${stamp}.csv`, this._buildMatrixCSV(data));
             await this._writeFile(logDir, `Matrix_${projName}_${stamp}.json`, this._buildMatrixJSON(data));
+            await this._writeFile(logDir, `Matrix_Nice_theme_${projName}_${stamp}.xls`, this._buildMatrixNiceXLS(data));
 
             for (const test of data.testColumns) {
                 const rows = SectionManager.getRowsForTest(test.id);
@@ -316,7 +318,7 @@ const ExportManager = {
         DataModel.currentExportTestId = testId;
         const test = DataModel.getTest(testId);
 
-        document.getElementById('exportInfo').innerHTML = `
+        let infoHtml = `
             <strong>Test Activity:</strong> ${test.name}<br>
             <strong>UID:</strong> ${test.uid || 'N/A'}<br>
             <strong>Type:</strong> ${test.type}<br>
@@ -324,6 +326,16 @@ const ExportManager = {
             <strong>Workpack:</strong> ${test.workpack || 'N/A'}<br>
             <strong>Period:</strong> ${test.startDate || 'N/A'} to ${test.endDate || 'N/A'}
         `;
+
+        // Show sub-activities if this is a main test with subs
+        if (test.subActivities && test.subActivities.length > 0) {
+            infoHtml += `<br><br><strong>Sub-Activities (${test.subActivities.length}):</strong>`;
+            test.subActivities.forEach(sub => {
+                infoHtml += `<br><span style="color:#a78bfa;padding-left:12px">└ ${sub.name} — ${sub.type} @ ${sub.location}</span>`;
+            });
+        }
+
+        document.getElementById('exportInfo').innerHTML = infoHtml;
 
         const exportRows = SectionManager.getRowsForTest(testId);
         const duplicates = SectionManager.checkDuplicates(exportRows);
@@ -490,6 +502,7 @@ const ExportManager = {
         // Only use File System API if user has explicitly chosen a folder via Browse
         if (!this._rootHandle || !this._hasFileSystemAPI()) {
             this._download(this._buildMatrixJSON(data), `Matrix_${projName}.json`, 'application/json');
+            this._download(this._buildMatrixNiceXLS(data), `Matrix_Nice_theme_${projName}.xls`, 'application/vnd.ms-excel');
             // Push to JSONbin
             if (typeof SyncManager !== 'undefined') {
                 StorageManager.saveNow({
@@ -515,6 +528,7 @@ const ExportManager = {
             // Archive + write matrix files
             await this._archiveAndWrite(exportDir, logDir, `Matrix_${projName}.json`, this._buildMatrixJSON(data), stamp);
             await this._archiveAndWrite(exportDir, logDir, `Matrix_${projName}.csv`, this._buildMatrixCSV(data), stamp);
+            await this._archiveAndWrite(exportDir, logDir, `Matrix_Nice_theme_${projName}.xls`, this._buildMatrixNiceXLS(data), stamp);
 
             // Archive + write each test file (UID-based matching)
             for (const test of data.testColumns) {
@@ -699,14 +713,22 @@ const ExportManager = {
         csv += `Export Date,${data.exportDate}\n\n`;
 
         const fixedH = ['Section','Item #','Description','Part No.','QTY','Workpack','Stakeholder'];
-        const testH = data.testColumns.map(t => `${t.name} (${t.type})`);
+        // Build test headers including sub-activities
+        const allTests = [];
+        data.testColumns.forEach(t => {
+            allTests.push(t);
+            if (t.subActivities && t.subActivities.length > 0) {
+                t.subActivities.forEach(sub => allTests.push(sub));
+            }
+        });
+        const testH = allTests.map(t => `${t.parentId ? '└ ' : ''}${t.name} (${t.type})`);
         csv += fixedH.concat(testH).map(h => this._csvEscape(h)).join(',') + '\n';
 
         data.sections.forEach(section => {
             section.rows.forEach(row => {
                 const fixed = [section.name, row.itemNo, row.description, row.partNo,
                                row.qty, row.workpack, row.stakeholder];
-                const tests = data.testColumns.map(t => row.testQty[t.id] || '');
+                const tests = allTests.map(t => row.testQty[t.id] || '');
                 csv += fixed.concat(tests).map(c => this._csvEscape(c)).join(',') + '\n';
             });
         });
@@ -716,6 +738,13 @@ const ExportManager = {
         data.testColumns.forEach(t => {
             csv += [t.uid||'', t.name, t.type, t.location, t.workpack||'', t.startDate||'', t.endDate||'']
                 .map(c => this._csvEscape(c)).join(',') + '\n';
+            // Include sub-activities indented under parent
+            if (t.subActivities && t.subActivities.length > 0) {
+                t.subActivities.forEach(sub => {
+                    csv += [sub.uid||'', '  └ ' + (sub.name||''), sub.type, sub.location, sub.workpack||'', sub.startDate||'', sub.endDate||'']
+                        .map(c => this._csvEscape(c)).join(',') + '\n';
+                });
+            }
         });
 
         const flow = (typeof StorageManager !== 'undefined') ? StorageManager.loadFlow() : null;
@@ -847,6 +876,189 @@ const ExportManager = {
         return csv;
     },
 
+    /**
+     * Build themed Excel file styled like the matrix UI.
+     * Uses HTML-as-Excel format (.xls) — Excel reads this natively and preserves
+     * all CSS styling (gradients, colors, borders, fonts).
+     */
+    _buildMatrixNiceXLS(data) {
+        const esc = (s) => {
+            if (s == null) return '';
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        };
+
+        // Theme colors pulled from styles.css
+        const C = {
+            bodyBg:     '#0a0a12',
+            headerBgA:  '#0f3460',
+            headerBgB:  '#1a1a40',
+            cyan:       '#00d4ff',
+            purple:     '#8b5cf6',
+            text:       '#e0e0e0',
+            textDim:    '#9ca3af',
+            cellBg:     '#15152a',
+            cellAlt:    '#1a1a3a',
+            cellBorder: '#2a2a4a',
+            sectionBg:  '#252550',
+            testHdrBg:  '#1a1a3a',
+            subBg:      '#1c1c2e'
+        };
+
+        // Type colors (match the flow chart)
+        const typeColors = {
+            'FAT':   '#00d4ff',
+            'EFAT':  '#10b981',
+            'FIT':   '#8b5cf6',
+            'SIT':   '#f59e0b',
+            'M-SIT': '#ef4444',
+            'SRT':   '#ec4899'
+        };
+
+        // Build a flat ordered list of tests (main + subs) for columns
+        const allTests = [];
+        data.testColumns.forEach(t => {
+            allTests.push({ test: t, isSub: false });
+            if (t.subActivities && t.subActivities.length > 0) {
+                t.subActivities.forEach(sub => allTests.push({ test: sub, isSub: true, parent: t }));
+            }
+        });
+
+        const docNo = data.docNo || '';
+        const projName = data.projectName || '';
+        const exportDate = new Date().toLocaleString();
+
+        // Shared style snippets
+        const baseFont = `font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;`;
+        const cellBase = `${baseFont} color:${C.text}; padding:6px 10px; border:1px solid ${C.cellBorder}; font-size:11px;`;
+        const fixedHeaderStyle = `${baseFont} background:${C.headerBgA}; color:${C.cyan}; padding:10px; border:1px solid ${C.cellBorder}; font-weight:700; font-size:11px; text-align:left; letter-spacing:0.5px; text-transform:uppercase;`;
+        const testHeaderStyle = (bg) => `${baseFont} background:${bg}; color:#fff; padding:8px 6px; border:1px solid ${C.cellBorder}; font-weight:700; font-size:10px; text-align:center; letter-spacing:0.3px;`;
+
+        let html = '';
+        html += `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+        html += `<head><meta charset="UTF-8">`;
+        html += `<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets>`;
+        html += `<x:ExcelWorksheet><x:Name>Matrix</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>`;
+        html += `<x:ExcelWorksheet><x:Name>Activities</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>`;
+        html += `</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->`;
+        html += `<title>Matrix - ${esc(projName)}</title></head>`;
+        html += `<body style="background:${C.bodyBg};">`;
+
+        // ══════════ SHEET 1: MATRIX ══════════
+        html += `<table border="0" cellspacing="0" cellpadding="0" style="background:${C.bodyBg}; ${baseFont}">`;
+
+        // Title banner
+        const colSpan = 8 + allTests.length;
+        html += `<tr><td colspan="${colSpan}" style="background:linear-gradient(135deg, ${C.headerBgA} 0%, ${C.headerBgB} 100%); padding:16px 20px; border-bottom:3px solid ${C.cyan};">`;
+        html += `<div style="color:${C.cyan}; font-size:18px; font-weight:700; letter-spacing:1px;">TEST EQUIPMENT MATRIX</div>`;
+        html += `<div style="color:${C.text}; font-size:12px; margin-top:4px;"><b>Project:</b> ${esc(projName)} &nbsp;·&nbsp; <b>Doc No:</b> ${esc(docNo)} &nbsp;·&nbsp; <b>Exported:</b> ${esc(exportDate)}</div>`;
+        html += `</td></tr>`;
+
+        // Spacer row
+        html += `<tr><td colspan="${colSpan}" style="height:8px; background:${C.bodyBg};"></td></tr>`;
+
+        // Column header row
+        html += `<tr>`;
+        html += `<th style="${fixedHeaderStyle}">Section</th>`;
+        html += `<th style="${fixedHeaderStyle}">Item #</th>`;
+        html += `<th style="${fixedHeaderStyle}">Description</th>`;
+        html += `<th style="${fixedHeaderStyle}">Part No.</th>`;
+        html += `<th style="${fixedHeaderStyle}">MEL QTY</th>`;
+        html += `<th style="${fixedHeaderStyle}">QTY</th>`;
+        html += `<th style="${fixedHeaderStyle}">Workpack</th>`;
+        html += `<th style="${fixedHeaderStyle}">Stakeholder</th>`;
+
+        allTests.forEach(({ test, isSub }) => {
+            const bg = isSub ? C.subBg : C.testHdrBg;
+            const typeColor = typeColors[test.type] || C.cyan;
+            html += `<th style="${testHeaderStyle(bg)}; border-top:3px solid ${typeColor};">`;
+            const prefix = isSub ? '<span style="opacity:0.6;">↳ </span>' : '';
+            html += `<div style="color:${isSub ? C.textDim : '#fff'}; font-style:${isSub ? 'italic' : 'normal'}; font-size:${isSub ? '9px' : '10px'};">${prefix}${esc(test.name)}</div>`;
+            html += `<div style="color:${typeColor}; font-size:9px; font-weight:700; margin-top:3px;">${esc(test.type)}</div>`;
+            html += `<div style="color:${C.textDim}; font-size:8px; margin-top:2px; font-weight:400;">${esc(test.location || '')}</div>`;
+            if (test.workpack) html += `<div style="color:${C.purple}; font-size:8px; margin-top:2px;">${esc(test.workpack)}</div>`;
+            html += `</th>`;
+        });
+        html += `</tr>`;
+
+        // Data rows
+        data.sections.forEach(section => {
+            // Section header row
+            html += `<tr><td colspan="${colSpan}" style="${baseFont} background:${C.sectionBg}; color:${C.cyan}; padding:8px 12px; border:1px solid ${C.cellBorder}; font-weight:700; font-size:11px; letter-spacing:0.5px; text-transform:uppercase;">▸ ${esc(section.name)}</td></tr>`;
+
+            section.rows.forEach((row, idx) => {
+                const rowBg = idx % 2 === 0 ? C.cellBg : C.cellAlt;
+                html += `<tr>`;
+                html += `<td style="${cellBase} background:${rowBg}; color:${C.textDim}; font-size:10px;">${esc(section.name)}</td>`;
+                html += `<td style="${cellBase} background:${rowBg}; font-family:'Consolas','Monaco',monospace; color:${C.cyan};">${esc(row.itemNo || '')}</td>`;
+                html += `<td style="${cellBase} background:${rowBg};">${esc(row.description || '')}</td>`;
+                html += `<td style="${cellBase} background:${rowBg}; font-family:'Consolas','Monaco',monospace; color:${C.textDim};">${esc(row.partNo || '')}</td>`;
+                html += `<td style="${cellBase} background:${rowBg}; text-align:center;">${esc(row.melQty || '')}</td>`;
+                html += `<td style="${cellBase} background:${rowBg}; text-align:center; color:${C.cyan}; font-weight:600;">${esc(row.qty || '')}</td>`;
+                html += `<td style="${cellBase} background:${rowBg};">`;
+                if (row.workpack) html += `<span style="background:${C.purple}; color:#fff; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600;">${esc(row.workpack)}</span>`;
+                html += `</td>`;
+                html += `<td style="${cellBase} background:${rowBg}; color:${C.textDim}; font-size:10px;">${esc(row.stakeholder || '')}</td>`;
+
+                // Test quantity cells
+                allTests.forEach(({ test, isSub }) => {
+                    const qty = row.testQty ? row.testQty[test.id] : '';
+                    const typeColor = typeColors[test.type] || C.cyan;
+                    const cellBg = isSub ? (idx % 2 === 0 ? '#14142a' : '#18182e') : rowBg;
+                    const hasVal = qty && String(qty).trim() !== '' && qty !== '0';
+                    html += `<td style="${cellBase} background:${cellBg}; text-align:center; font-weight:${hasVal ? '700' : '400'}; color:${hasVal ? typeColor : C.textDim};">`;
+                    html += hasVal ? esc(qty) : '<span style="opacity:0.3;">·</span>';
+                    html += `</td>`;
+                });
+                html += `</tr>`;
+            });
+        });
+
+        html += `</table>`;
+
+        // ══════════ SHEET 2: ACTIVITIES ══════════
+        // Page break to force new sheet in Excel
+        html += `<br style="mso-data-placement:same-cell;"/>`;
+        html += `<table border="0" cellspacing="0" cellpadding="0" style="background:${C.bodyBg}; ${baseFont}; margin-top:40px;">`;
+        html += `<tr><td colspan="7" style="background:linear-gradient(135deg, ${C.headerBgA} 0%, ${C.headerBgB} 100%); padding:14px 20px; border-bottom:3px solid ${C.purple};">`;
+        html += `<div style="color:${C.purple}; font-size:16px; font-weight:700; letter-spacing:1px;">ACTIVITY SUMMARY</div>`;
+        html += `</td></tr>`;
+        html += `<tr><td colspan="7" style="height:8px; background:${C.bodyBg};"></td></tr>`;
+
+        html += `<tr>`;
+        ['UID', 'Name', 'Type', 'Location', 'Workpack', 'Start', 'End'].forEach(h => {
+            html += `<th style="${fixedHeaderStyle}">${h}</th>`;
+        });
+        html += `</tr>`;
+
+        allTests.forEach(({ test, isSub }, i) => {
+            const rowBg = i % 2 === 0 ? C.cellBg : C.cellAlt;
+            const typeColor = typeColors[test.type] || C.cyan;
+            const namePrefix = isSub ? '<span style="color:' + C.textDim + ';">↳ </span>' : '';
+            const nameStyle = isSub ? `color:${C.textDim}; font-style:italic;` : `color:${C.text}; font-weight:600;`;
+            html += `<tr>`;
+            html += `<td style="${cellBase} background:${rowBg}; font-family:'Consolas','Monaco',monospace; color:${C.cyan}; font-size:10px;">${esc(test.uid || '')}</td>`;
+            html += `<td style="${cellBase} background:${rowBg}; ${nameStyle}">${namePrefix}${esc(test.name)}</td>`;
+            html += `<td style="${cellBase} background:${rowBg}; text-align:center;"><span style="color:${typeColor}; font-weight:700;">${esc(test.type)}</span></td>`;
+            html += `<td style="${cellBase} background:${rowBg};">${esc(test.location || '')}</td>`;
+            html += `<td style="${cellBase} background:${rowBg};">`;
+            if (test.workpack) html += `<span style="background:${C.purple}; color:#fff; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600;">${esc(test.workpack)}</span>`;
+            html += `</td>`;
+            html += `<td style="${cellBase} background:${rowBg}; color:${C.textDim}; font-family:'Consolas','Monaco',monospace; font-size:10px;">${esc(test.startDate || '')}</td>`;
+            html += `<td style="${cellBase} background:${rowBg}; color:${C.textDim}; font-family:'Consolas','Monaco',monospace; font-size:10px;">${esc(test.endDate || '')}</td>`;
+            html += `</tr>`;
+        });
+
+        html += `</table>`;
+        html += `</body></html>`;
+
+        // Prepend BOM for Excel UTF-8 compatibility
+        return '\uFEFF' + html;
+    },
+
     _buildMatrixJSON(data) {
         const out = { ...data };
         const flow = (typeof StorageManager !== 'undefined') ? StorageManager.loadFlow() : null;
@@ -905,6 +1117,16 @@ const ExportManager = {
         csv += `Workpack,${test.workpack||''}\n`;
         csv += `Start Date,${test.startDate||'N/A'}\nEnd Date,${test.endDate||'N/A'}\n`;
 
+        // Include sub-activities if any
+        if (test.subActivities && test.subActivities.length > 0) {
+            csv += `\nSub-Activities (${test.subActivities.length})\n`;
+            csv += `UID,Name,Type,Location,Workpack,Start,End\n`;
+            test.subActivities.forEach(sub => {
+                csv += [sub.uid||'', sub.name, sub.type, sub.location, sub.workpack||'', sub.startDate||'', sub.endDate||'']
+                    .map(c => this._csvEscape(c)).join(',') + '\n';
+            });
+        }
+
         // Include description if available
         const flow = (typeof StorageManager !== 'undefined') ? StorageManager.loadFlow() : null;
         const desc = flow?.descriptions?.[test.id];
@@ -945,6 +1167,7 @@ const ExportManager = {
 
         return JSON.stringify({
             testActivity: test,
+            subActivities: test.subActivities || [],
             description: desc,
             items: items,
             blender_scene: {

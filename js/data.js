@@ -91,6 +91,9 @@ const DataModel = {
     // Hidden activities (array of test IDs to hide from view)
     hiddenActivities: [],
 
+    // Expanded sub-activities (set of parent test IDs whose subs are visible)
+    expandedSubActivities: [],
+
     // Collapsed WP sub-groups within sections (runtime, not persisted)
     _collapsedWps: {},
 
@@ -99,9 +102,37 @@ const DataModel = {
         return !this.hiddenActivities.includes(testId);
     },
 
-    /** Get visible test columns in order */
+    /** Check if a parent's sub-activities are expanded */
+    isSubExpanded(parentId) {
+        return this.expandedSubActivities.includes(parentId);
+    },
+
+    /** Toggle sub-activity visibility for a parent test */
+    toggleSubExpanded(parentId) {
+        const idx = this.expandedSubActivities.indexOf(parentId);
+        if (idx === -1) {
+            this.expandedSubActivities.push(parentId);
+        } else {
+            this.expandedSubActivities.splice(idx, 1);
+        }
+    },
+
+    /** Get sub-activities for a parent test */
+    getSubActivities(parentId) {
+        const parent = this.testColumns.find(t => t.id === parentId);
+        return (parent && parent.subActivities) ? parent.subActivities : [];
+    },
+
+    /** Get visible test columns in order, including expanded sub-activities */
     getVisibleColumns() {
-        return this.testColumns.filter(t => this.isActivityVisible(t.id));
+        const result = [];
+        this.testColumns.filter(t => this.isActivityVisible(t.id)).forEach(t => {
+            result.push(t);
+            if (t.subActivities && t.subActivities.length > 0 && this.isSubExpanded(t.id)) {
+                t.subActivities.forEach(sub => result.push(sub));
+            }
+        });
+        return result;
     },
 
     /**
@@ -112,10 +143,32 @@ const DataModel = {
     },
 
     /**
-     * Get test by ID
+     * Get test by ID (searches main tests and sub-activities)
      */
     getTest(testId) {
-        return this.testColumns.find(t => t.id === testId);
+        const main = this.testColumns.find(t => t.id === testId);
+        if (main) return main;
+        // Search sub-activities
+        for (const t of this.testColumns) {
+            if (t.subActivities) {
+                const sub = t.subActivities.find(s => s.id === testId);
+                if (sub) return sub;
+            }
+        }
+        return null;
+    },
+
+    /**
+     * Get the parent test for a sub-activity (returns null if testId is a main test)
+     */
+    getParentTest(testId) {
+        for (const t of this.testColumns) {
+            if (t.subActivities) {
+                const sub = t.subActivities.find(s => s.id === testId);
+                if (sub) return t;
+            }
+        }
+        return null;
     },
 
     /**
@@ -149,18 +202,25 @@ const DataModel = {
     },
 
     /**
-     * Get total number of columns (fixed + test + add button)
+     * Get total number of columns (fixed + test + subs + add button)
      */
     getTotalColumns() {
-        return 7 + this.testColumns.length + 1; // 7 fixed + tests + add button
+        let testCount = this.testColumns.length;
+        this.testColumns.forEach(t => {
+            if (t.subActivities) testCount += t.subActivities.length;
+        });
+        return 7 + testCount + 1; // 7 fixed + tests/subs + add button
     },
 
     /**
      * Generate a unique test activity ID like test-03
      */
     generateUid() {
-        // Collect all used UIDs: current + historical
+        // Collect all used UIDs: current + sub-activities + historical
         const existing = new Set(this.testColumns.map(t => t.uid).filter(Boolean));
+        this.testColumns.forEach(t => {
+            if (t.subActivities) t.subActivities.forEach(s => { if (s.uid) existing.add(s.uid); });
+        });
         try {
             const hist = StorageManager.loadHistory();
             if (hist && hist.deletedActivities) {
@@ -178,6 +238,12 @@ const DataModel = {
                 const m = t.uid.match(/^test-(\d+)$/);
                 if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
             }
+            if (t.subActivities) t.subActivities.forEach(s => {
+                if (s.uid) {
+                    const m = s.uid.match(/^test-(\d+)$/);
+                    if (m) maxNum = Math.max(maxNum, parseInt(m[1]));
+                }
+            });
         });
         let n = maxNum + 1;
         let uid;
@@ -211,8 +277,13 @@ const DataModel = {
             this.testColumns = data.testColumns;
             this.sections = data.sections;
             
-            // Update next ID
-            const maxId = Math.max(...this.testColumns.map(t => t.id), 0);
+            // Update next ID (include sub-activity IDs)
+            let maxId = Math.max(...this.testColumns.map(t => t.id), 0);
+            this.testColumns.forEach(t => {
+                if (t.subActivities) {
+                    t.subActivities.forEach(s => { maxId = Math.max(maxId, s.id || 0); });
+                }
+            });
             this.nextTestId = maxId + 1;
 
             // Backfill missing uid / workpack fields

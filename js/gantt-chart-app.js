@@ -137,6 +137,18 @@ var GCApp = {
         return parts.join('|');
     },
 
+    /** Return all test activities including sub-activities as a flat array */
+    _getAllTests:function(){
+        var all=[];
+        DataModel.testColumns.forEach(function(t){
+            all.push(t);
+            if(t.subActivities&&t.subActivities.length>0){
+                t.subActivities.forEach(function(s){all.push(s);});
+            }
+        });
+        return all;
+    },
+
     /** Save bars + map positions to unified StorageManager */
     _save:function(){
         var bars={},self=this;
@@ -172,7 +184,7 @@ var GCApp = {
 
     _calcRange:function(){
         var start=null,end=null,today=new Date();
-        DataModel.testColumns.forEach(function(t){if(t.startDate){var d=new Date(t.startDate);if(!start||d<start)start=d;}if(t.endDate){var d=new Date(t.endDate);if(!end||d>end)end=d;}});
+        this._getAllTests().forEach(function(t){if(t.startDate){var d=new Date(t.startDate);if(!start||d<start)start=d;}if(t.endDate){var d=new Date(t.endDate);if(!end||d>end)end=d;}});
         this._equipSchedules.forEach(function(sec){sec.rows.forEach(function(row){row.bars.forEach(function(b){if(b.startDate){var d=new Date(b.startDate);if(!start||d<start)start=d;}if(b.endDate){var d=new Date(b.endDate);if(!end||d>end)end=d;}});});});
         this._getMilestones().forEach(function(ms){if(ms.pd){if(!start||ms.pd<start)start=ms.pd;if(!end||ms.pd>end)end=ms.pd;}});
         if(!start)start=new Date(today.getFullYear(),today.getMonth()-2,1);if(!end)end=new Date(today.getFullYear(),today.getMonth()+8,0);
@@ -568,7 +580,7 @@ var GCApp = {
         var scheduleHtml='';
         var section=DataModel.getSection(sec.sectionId);
         var linkedTests=[];
-        if(section){var mRow=section.rows[row.rowIdx];if(mRow&&mRow.testQty){DataModel.testColumns.forEach(function(t){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')linkedTests.push(t);});}}
+        if(section){var mRow=section.rows[row.rowIdx];if(mRow&&mRow.testQty){self._getAllTests().forEach(function(t){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')linkedTests.push(t);});}}
 
         var barStart=bar.startDate?new Date(bar.startDate):null;
         var barEnd=bar.endDate?new Date(bar.endDate):null;
@@ -584,7 +596,8 @@ var GCApp = {
                 var tc=DataModel.getLocationColor(t.location);var dot=tc?tc.color:'#64748b';
                 var info=t.startDate&&t.endDate?' ('+t.startDate.substring(5)+'\u2192'+t.endDate.substring(5)+')':'';
                 var locMatch=t.location===bar.location?' style="color:var(--gc-accent-cyan);"':'';
-                scheduleHtml+='<div class="gc-ctx-item sub"'+locMatch+'><span class="gc-ctx-dot" style="background:'+dot+'"></span>'+self._esc(t.name)+' <span style="color:#8b929a;">\u00B7 '+self._esc(t.type)+' \u00B7 '+self._shortLoc(t.location||'')+info+'</span></div>';
+                var isSub=!!t.parentId;var prefix=isSub?'\u2514 ':'';var subAttr=isSub?' style="font-style:italic;opacity:0.85;'+(t.location===bar.location?'color:var(--gc-accent-cyan);':'')+'"':locMatch;
+                scheduleHtml+='<div class="gc-ctx-item sub"'+subAttr+'><span class="gc-ctx-dot" style="background:'+dot+'"></span>'+prefix+self._esc(t.name)+' <span style="color:#8b929a;">\u00B7 '+self._esc(t.type)+' \u00B7 '+self._shortLoc(t.location||'')+info+'</span></div>';
             });
         } else if(linkedTests.length>0){
             scheduleHtml='<div class="gc-ctx-divider"></div><div class="gc-ctx-label">Test Activities</div><div class="gc-ctx-item disabled">No tests overlap this period</div>';
@@ -655,7 +668,7 @@ var GCApp = {
 
         // Test scope items
         var tests=this._getTestsForRow(sec.sectionId,rIdx),testHtml='';
-        if(tests.length>0){tests.forEach(function(t){var c=DataModel.getLocationColor(t.location);var dot=c?c.color:'#64748b';var hasDates=t.startDate&&t.endDate;var info=hasDates?' ('+t.startDate.substring(5)+'\u2192'+t.endDate.substring(5)+')':' (assign dates)';var style=hasDates?'':'color:#f59e0b;';testHtml+='<div class="gc-ctx-item sub" data-action="from-test" data-tid="'+t.id+'"><span class="gc-ctx-dot" style="background:'+dot+'"></span>'+self._esc(t.name)+' <span style="color:#64748b;">'+self._esc(t.type)+'</span> <span style="'+style+'font-size:10px;">'+info+'</span></div>';});}
+        if(tests.length>0){tests.forEach(function(t){var c=DataModel.getLocationColor(t.location);var dot=c?c.color:'#64748b';var hasDates=t.startDate&&t.endDate;var info=hasDates?' ('+t.startDate.substring(5)+'\u2192'+t.endDate.substring(5)+')':' (assign dates)';var style=hasDates?'':'color:#f59e0b;';var isSub=!!t.parentId;var prefix=isSub?'\u2514 ':'';var subStyle=isSub?'font-style:italic;opacity:0.85;':'';testHtml+='<div class="gc-ctx-item sub" data-action="from-test" data-tid="'+t.id+'" style="'+subStyle+'"><span class="gc-ctx-dot" style="background:'+dot+'"></span>'+prefix+self._esc(t.name)+' <span style="color:#64748b;">'+self._esc(t.type)+'</span> <span style="'+style+'font-size:10px;">'+info+'</span></div>';});}
         else testHtml='<div class="gc-ctx-item disabled">No linked test scopes</div>';
 
         // Flow edge shortcuts
@@ -697,7 +710,7 @@ var GCApp = {
     _positionCtx:function(menu,x,y){menu.style.left=x+'px';menu.style.top=y+'px';menu.classList.add('visible');setTimeout(function(){var r=menu.getBoundingClientRect();if(r.right>window.innerWidth)menu.style.left=(x-r.width)+'px';if(r.bottom>window.innerHeight)menu.style.top=(y-r.height)+'px';},0);},
     _hideCtx:function(){var m=document.getElementById('gcCtxMenu');if(m)m.classList.remove('visible');},
 
-    _getTestsForRow:function(sectionId,rowIdx){var section=DataModel.getSection(sectionId);if(!section)return[];var row=section.rows[rowIdx];if(!row||!row.testQty)return[];var out=[];DataModel.testColumns.forEach(function(t){var v=row.testQty[t.id];if(v&&v!==''&&v!=='0')out.push(t);});return out;},
+    _getTestsForRow:function(sectionId,rowIdx){var section=DataModel.getSection(sectionId);if(!section)return[];var row=section.rows[rowIdx];if(!row||!row.testQty)return[];var out=[];this._getAllTests().forEach(function(t){var v=row.testQty[t.id];if(v&&v!==''&&v!=='0')out.push(t);});return out;},
 
     _addFromTest:function(sIdx,rIdx,testId){
         var t=DataModel.getTest(testId);if(!t)return;
@@ -832,7 +845,7 @@ var GCApp = {
         else{if(lf)lf.classList.remove('visible');this._stopAnim();this._renderSvgMap();}
     },
 
-    _getUsedLocs:function(){var u=new Set();this._equipSchedules.forEach(function(s){s.rows.forEach(function(r){r.bars.forEach(function(b){if(b.location)u.add(b.location);if(b.fromLocation)u.add(b.fromLocation);});});});DataModel.testColumns.forEach(function(t){if(t.location)u.add(t.location);});return u;},
+    _getUsedLocs:function(){var u=new Set();this._equipSchedules.forEach(function(s){s.rows.forEach(function(r){r.bars.forEach(function(b){if(b.location)u.add(b.location);if(b.fromLocation)u.add(b.fromLocation);});});});GCApp._getAllTests().forEach(function(t){if(t.location)u.add(t.location);});return u;},
 
     _rowPosAt:function(row,t){
         var ms=this._rangeEnd-this._rangeStart,cd=new Date(this._rangeStart.getTime()+ms*t);
@@ -1005,12 +1018,13 @@ var GCApp = {
             // Rich popup: test activities + equipment with their linked tests
             var popup='<div style="font-family:monospace;font-size:11px;min-width:220px;max-height:350px;overflow-y:auto;">';
             popup+='<strong style="color:'+c+';font-size:12px;">'+self._esc(loc)+'</strong>';
-            var testsHere=DataModel.testColumns.filter(function(t){return t.location===loc;});
+            var testsHere=GCApp._getAllTests().filter(function(t){return t.location===loc;});
             if(testsHere.length>0){
                 popup+='<div style="margin-top:6px;border-top:1px solid #333;padding-top:4px;"><div style="color:#8b929a;font-size:9px;text-transform:uppercase;margin-bottom:2px;">Test Activities</div>';
                 testsHere.forEach(function(t){
                     var dates=t.startDate&&t.endDate?t.startDate.substring(5)+' \u2192 '+t.endDate.substring(5):'No dates';
-                    popup+='<div style="margin-bottom:2px;">'+self._esc(t.name)+' <span style="color:#8b929a;">\u00B7 '+self._esc(t.type)+' \u00B7 '+dates+'</span></div>';
+                    var isSub=!!t.parentId;var prefix=isSub?'<span style="color:#a78bfa;">\u2514 </span>':'';var subStyle=isSub?'font-style:italic;color:#a78bfa;':'';
+                    popup+='<div style="margin-bottom:2px;'+subStyle+'">'+prefix+self._esc(t.name)+' <span style="color:#8b929a;">\u00B7 '+self._esc(t.type)+' \u00B7 '+dates+'</span></div>';
                 });
                 popup+='</div>';
             }
@@ -1031,7 +1045,7 @@ var GCApp = {
                     if(section){
                         var mRow=section.rows[er.rowIdx];
                         if(mRow&&mRow.testQty){
-                            DataModel.testColumns.forEach(function(t){
+                            GCApp._getAllTests().forEach(function(t){
                                 var v=mRow.testQty[t.id];
                                 if(v&&v!==''&&v!=='0'&&t.location===loc){
                                     var dates=t.startDate&&t.endDate?t.startDate.substring(5)+'\u2192'+t.endDate.substring(5):'';
@@ -1291,7 +1305,7 @@ var GCApp = {
         var typeColors={'FAT':'#00d4ff','EFAT':'#10b981','FIT':'#8b5cf6','M-SIT':'#ef4444','SIT':'#f59e0b','SRT':'#ec4899'};
         var wpColors={'WP03':'#06b6d4','WP04':'#8b5cf6','WP05':'#10b981','WP06':'#f59e0b','WP07':'#ef4444','WP09':'#ec4899','WP10':'#6366f1','WP11':'#14b8a6'};
         var usedTypes={},usedWPs={};
-        DataModel.testColumns.forEach(function(t){if(t.type)usedTypes[t.type]=true;if(t.workpack)usedWPs[t.workpack]=true;});
+        GCApp._getAllTests().forEach(function(t){if(t.type)usedTypes[t.type]=true;if(t.workpack)usedWPs[t.workpack]=true;});
         DataModel.sections.forEach(function(sec){sec.rows.forEach(function(row){if(row.workpack)usedWPs[row.workpack]=true;});});
 
         var h='<span class="gc-filter-label">Activity:</span>';
@@ -1344,8 +1358,8 @@ var GCApp = {
         var section=DataModel.getSection(sectionId);if(!section)return false;
         var mRow=section.rows[rowIdx];if(!mRow)return false;
         var matchesType=!hasTypes,matchesWp=!hasWps,self=this;
-        if(hasTypes&&mRow.testQty){DataModel.testColumns.forEach(function(t){if(self._activeTypes[t.type]){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')matchesType=true;}});}
-        if(hasWps){if(this._activeWps[mRow.workpack])matchesWp=true;if(!matchesWp&&mRow.testQty){DataModel.testColumns.forEach(function(t){if(self._activeWps[t.workpack]){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')matchesWp=true;}});}}
+        if(hasTypes&&mRow.testQty){GCApp._getAllTests().forEach(function(t){if(self._activeTypes[t.type]){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')matchesType=true;}});}
+        if(hasWps){if(this._activeWps[mRow.workpack])matchesWp=true;if(!matchesWp&&mRow.testQty){GCApp._getAllTests().forEach(function(t){if(self._activeWps[t.workpack]){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')matchesWp=true;}});}}
         return matchesType&&matchesWp;
     },
 
@@ -1355,7 +1369,7 @@ var GCApp = {
         for(var k in this._activeWps)if(this._activeWps[k]){hasWps=true;break;}
         if(!hasTypes&&!hasWps)return true;
         var found=false,self=this;
-        DataModel.testColumns.forEach(function(t){if(t.location===loc){if(hasTypes&&self._activeTypes[t.type])found=true;if(hasWps&&self._activeWps[t.workpack])found=true;}});
+        GCApp._getAllTests().forEach(function(t){if(t.location===loc){if(hasTypes&&self._activeTypes[t.type])found=true;if(hasWps&&self._activeWps[t.workpack])found=true;}});
         return found;
     },
 
@@ -1455,7 +1469,7 @@ var GCApp = {
             var mRow=section.rows[row.rowIdx];
             if(mRow&&mRow.testQty){
                 var tests=[];
-                DataModel.testColumns.forEach(function(t){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')tests.push(t);});
+                GCApp._getAllTests().forEach(function(t){var v=mRow.testQty[t.id];if(v&&v!==''&&v!=='0')tests.push(t);});
                 if(tests.length>0){
                     h+='<div style="font-size:10px;color:#5c6370;text-transform:uppercase;margin:8px 0 4px;border-top:1px solid rgba(255,255,255,0.06);padding-top:6px;">Test Activities</div>';
                     tests.forEach(function(t){
@@ -1486,7 +1500,7 @@ var GCApp = {
             if(info&&info.location===loc&&!info.isTransfer) equipHere.push({row:item.row,sec:item.sec});
         });
         // Test activities at this location
-        var testsHere=DataModel.testColumns.filter(function(t){return t.location===loc;});
+        var testsHere=GCApp._getAllTests().filter(function(t){return t.location===loc;});
         var h='';
 
         // Show test activities header
@@ -1495,7 +1509,8 @@ var GCApp = {
             testsHere.forEach(function(t){
                 var c=DataModel.getLocationColor(t.location);var dot=c?c.color:'#64748b';
                 var dates=t.startDate&&t.endDate?t.startDate.substring(5)+' \u2192 '+t.endDate.substring(5):'No dates';
-                h+='<div class="gc-tooltip-row"><span class="gc-tooltip-label" style="color:'+dot+'">'+self._esc(t.name)+'</span><span class="gc-tooltip-value">'+self._esc(t.type)+' \u00B7 '+dates+'</span></div>';
+                var isSub=!!t.parentId;var prefix=isSub?'\u2514 ':'';var subStyle=isSub?' style="font-style:italic;opacity:0.8;"':'';
+                h+='<div class="gc-tooltip-row"'+subStyle+'><span class="gc-tooltip-label" style="color:'+dot+'">'+prefix+self._esc(t.name)+'</span><span class="gc-tooltip-value">'+self._esc(t.type)+' \u00B7 '+dates+'</span></div>';
             });
         }
 
@@ -1514,7 +1529,7 @@ var GCApp = {
                     var mRow=section.rows[r.rowIdx];
                     if(mRow&&mRow.testQty){
                         var rowTests=[];
-                        DataModel.testColumns.forEach(function(t){
+                        GCApp._getAllTests().forEach(function(t){
                             var v=mRow.testQty[t.id];
                             if(v&&v!==''&&v!=='0'&&t.location===loc) rowTests.push(t);
                         });
