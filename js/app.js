@@ -22,6 +22,7 @@ const App = {
         // 3. Initialize modules
         ModalManager.init();
         FreezeManager.init();
+        if (typeof FreezeRowsManager !== 'undefined') FreezeRowsManager.init();
         FilterManager.init();
         RefreshManager.init();
 
@@ -112,6 +113,7 @@ const App = {
         const p = StorageManager.loadPrefs();
         if (p) {
             DataModel.freezeEnabled = !!p.freezeEnabled;
+            DataModel.freezeRowsEnabled = !!p.freezeRowsEnabled;
             DataModel.hiddenActivities = p.hiddenActivities || [];
 
             // Load custom locations into DataModel

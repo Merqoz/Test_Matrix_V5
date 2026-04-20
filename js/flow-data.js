@@ -73,6 +73,7 @@ const FlowData = {
         this.nodes = matrixData.testColumns.map((test, index) => ({
             id: test.id,
             name: test.name,
+            subtitle: test.subtitle || '',
             type: test.type,
             location: test.location || '',
             startDate: test.startDate || '',

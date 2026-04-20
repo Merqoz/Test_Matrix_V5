@@ -6,8 +6,8 @@
 const DataModel = {
     // Test columns configuration
     testColumns: [
-        { id: 1, uid: 'test-01', name: 'Test 1', type: 'FAT', location: 'Norway, Egersund', workpack: '', startDate: '2026-02-04', endDate: '2026-06-04' },
-        { id: 2, uid: 'test-02', name: 'Test 2', type: 'FIT', location: 'Norway, Ågotnes', workpack: '', startDate: '', endDate: '' }
+        { id: 1, uid: 'test-01', name: 'Test 1', subtitle: '', type: 'FAT', location: 'Norway, Egersund', workpack: '', startDate: '2026-02-04', endDate: '2026-06-04' },
+        { id: 2, uid: 'test-02', name: 'Test 2', subtitle: '', type: 'FIT', location: 'Norway, Ågotnes', workpack: '', startDate: '', endDate: '' }
     ],
 
     // Sections with equipment rows
@@ -86,7 +86,8 @@ const DataModel = {
     currentExportTestId: null,
 
     // Freeze state
-    freezeEnabled: false,
+    freezeEnabled: false,       // column freeze (first columns pinned to left)
+    freezeRowsEnabled: false,   // row freeze (thead rows pinned to top)
 
     // Hidden activities (array of test IDs to hide from view)
     hiddenActivities: [],
@@ -309,8 +310,8 @@ const DataModel = {
      */
     reset() {
         this.testColumns = [
-            { id: 1, uid: 'test-01', name: 'Test 1', type: 'FAT', location: 'Egersund', workpack: '', startDate: '', endDate: '' },
-            { id: 2, uid: 'test-02', name: 'Test 2', type: 'FIT', location: 'Ågotnes', workpack: '', startDate: '', endDate: '' }
+            { id: 1, uid: 'test-01', name: 'Test 1', subtitle: '', type: 'FAT', location: 'Egersund', workpack: '', startDate: '', endDate: '' },
+            { id: 2, uid: 'test-02', name: 'Test 2', subtitle: '', type: 'FIT', location: 'Ågotnes', workpack: '', startDate: '', endDate: '' }
         ];
         this.sections = [
             {

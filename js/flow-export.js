@@ -650,7 +650,27 @@ const FlowExport = {
             // ══════════════════════════════════
             // PAGE 4 — Connections & Transfers
             // ══════════════════════════════════
-            if (FlowData.edges.length > 0) {
+            //
+            // Mirror the visibility logic used by the flow chart + Activity Summary:
+            // only include edges whose BOTH endpoints are visible nodes, i.e. activity
+            // is not hidden AND the lane (type) is not hidden. This matches which edge
+            // lines are actually shown on the diagram — see flow-edges.js render().
+            var visibleEdges = FlowData.edges.filter(function(edge) {
+                var fromNode = FlowData.getNode(edge.fromNodeId);
+                var toNode   = FlowData.getNode(edge.toNodeId);
+                if (!fromNode || !toNode) return false;
+                if (typeof DataModel !== 'undefined') {
+                    if (!DataModel.isActivityVisible(edge.fromNodeId)) return false;
+                    if (!DataModel.isActivityVisible(edge.toNodeId))   return false;
+                }
+                if (FlowData.hiddenLanes) {
+                    if (FlowData.hiddenLanes[fromNode.type]) return false;
+                    if (FlowData.hiddenLanes[toNode.type])   return false;
+                }
+                return true;
+            });
+
+            if (visibleEdges.length > 0) {
                 pdf.addPage('a3', 'landscape');
                 fillBg(T.tableBg);
 
@@ -663,18 +683,30 @@ const FlowExport = {
                 pdf.setLineWidth(0.3);
                 pdf.line(m, 22, pageW - m, 22);
 
+                // Summary line — mirrors the "X activities" line under Activity Summary
+                pdf.setFont('helvetica', 'italic');
+                pdf.setFontSize(9);
+                setColor(T.cellTextDim || T.cellText);
+                var totalEdges = FlowData.edges.length;
+                var hiddenCount = totalEdges - visibleEdges.length;
+                var subText = visibleEdges.length + ' connection' + (visibleEdges.length === 1 ? '' : 's');
+                if (hiddenCount > 0) {
+                    subText += ' shown (' + hiddenCount + ' hidden — endpoint not visible)';
+                }
+                pdf.text(subText, m, 26);
+
                 var eColW = [85, 85, 60, 130];
                 var eHeaders = ['From', 'To', 'Details', 'Equipment Transfer'];
-                var eHeaderY = 28;
+                var eHeaderY = 30;
                 var eTotalW = eColW.reduce(function(a,b){return a+b;},0);
 
                 drawTableHeader(m, eHeaderY, eColW, eHeaders, rowH);
 
                 var eCurY = eHeaderY + rowH;
-                var maxEdges = Math.min(FlowData.edges.length, 50);
+                var maxEdges = Math.min(visibleEdges.length, 50);
 
                 for (var ei = 0; ei < maxEdges; ei++) {
-                    var e = FlowData.edges[ei];
+                    var e = visibleEdges[ei];
                     var fromNode = FlowData.getNode(e.fromNodeId);
                     var toNode   = FlowData.getNode(e.toNodeId);
 
@@ -905,7 +937,23 @@ const FlowExport = {
             }
 
             // -- Slide 4: Connections & Transfers (if any) -----
-            if (FlowData.edges.length > 0) {
+            // Only include edges whose both endpoints are visible on the flow diagram
+            var pptxVisibleEdges = FlowData.edges.filter(function(edge) {
+                var fromNode = FlowData.getNode(edge.fromNodeId);
+                var toNode   = FlowData.getNode(edge.toNodeId);
+                if (!fromNode || !toNode) return false;
+                if (typeof DataModel !== 'undefined') {
+                    if (!DataModel.isActivityVisible(edge.fromNodeId)) return false;
+                    if (!DataModel.isActivityVisible(edge.toNodeId))   return false;
+                }
+                if (FlowData.hiddenLanes) {
+                    if (FlowData.hiddenLanes[fromNode.type]) return false;
+                    if (FlowData.hiddenLanes[toNode.type])   return false;
+                }
+                return true;
+            });
+
+            if (pptxVisibleEdges.length > 0) {
                 var s4 = pres.addSlide();
                 s4.background = { color: P.tblBg };
                 s4.addText('Connections & Equipment Transfers', {
@@ -913,9 +961,21 @@ const FlowExport = {
                     fontSize: 22, fontFace: 'Calibri', color: P.hdgClr, bold: true
                 });
 
+                // Summary line
+                var pptxHidden = FlowData.edges.length - pptxVisibleEdges.length;
+                var pptxSummary = pptxVisibleEdges.length + ' connection' +
+                                  (pptxVisibleEdges.length === 1 ? '' : 's');
+                if (pptxHidden > 0) {
+                    pptxSummary += ' shown (' + pptxHidden + ' hidden — endpoint not visible)';
+                }
+                s4.addText(pptxSummary, {
+                    x: 0.5, y: 0.85, w: 12, h: 0.3,
+                    fontSize: 10, fontFace: 'Calibri', color: P.metaClr, italic: true
+                });
+
                 var eHeader = [hdr('From'), hdr('To'), hdr('Details'), hdr('Equipment Transfer')];
                 var eBorderClr = isLight ? 'CCCCCC' : '28283c';
-                var eRows = FlowData.edges.slice(0, 30).map(function(e, i) {
+                var eRows = pptxVisibleEdges.slice(0, 30).map(function(e, i) {
                     var from = FlowData.getNode(e.fromNodeId);
                     var to   = FlowData.getNode(e.toNodeId);
                     var bg   = i % 2 === 0 ? P.rowAlt : P.rowNorm;
@@ -948,7 +1008,7 @@ const FlowExport = {
                 });
 
                 s4.addTable([eHeader].concat(eRows), {
-                    x: 0.4, y: 1.1, w: 12.5,
+                    x: 0.4, y: 1.25, w: 12.5,
                     colW: [3.0, 3.0, 2.0, 4.5],
                     border: { pt: 0.5, color: eBorderClr },
                     rowH: 0.35, autoPage: true, autoPageRepeatHeader: true

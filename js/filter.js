@@ -41,6 +41,14 @@ const FilterManager = {
             else if (wp) this._showChipCtx(e.clientX, e.clientY, 'wp', wp);
         });
         document.addEventListener('click', () => this._hideChipCtx());
+
+        // Initialize activity search field
+        setTimeout(() => {
+            const searchInput = document.getElementById('activitySearchInput');
+            if (searchInput) {
+                searchInput.addEventListener('input', (e) => this.onActivitySearch(e.target));
+            }
+        }, 100);
     },
 
     /* ══════════════════════════════════════════════════════
@@ -168,9 +176,13 @@ const FilterManager = {
         this.activeFilters = new Set(this._lockedTypes);
         this.activeWpFilters = new Set(this._lockedWps);
         this.searchValues = { itemNo:'', description:'', partNo:'', qty:'', melQty:'', workpack:'', stakeholder:'' };
+        this.activitySearchValue = '';
         this.activeColumnFilter = null;
         document.querySelectorAll('.col-filter-input').forEach(el => { el.value = ''; });
+        const searchInput = document.getElementById('activitySearchInput');
+        if (searchInput) searchInput.value = '';
         this.apply();
+        this.applyActivityFilter();
         this.renderFilterBar();
     },
 
@@ -292,6 +304,46 @@ const FilterManager = {
         // Update clear button visibility
         const btn = document.getElementById('filterClearBtn');
         if (btn) btn.classList.toggle('hidden', !hasSearch && this.activeFilters.size === 0 && this.activeColumnFilter === null);
+    },
+
+    _wasSearchActive: false,
+    activitySearchValue: '',
+
+    /**
+     * Search activities by name or Doc Nr (subtitle)
+     */
+    onActivitySearch(input) {
+        this.activitySearchValue = (input.value || '').toLowerCase().trim();
+        this.applyActivityFilter();
+    },
+
+    /**
+     * Apply activity name/doc nr filter to test columns
+     */
+    applyActivityFilter() {
+        const searchTerm = this.activitySearchValue;
+        const testCols = document.querySelectorAll('th.test-column.test-header');
+
+        testCols.forEach(th => {
+            const testId = parseInt(th.dataset.testId);
+            const test = DataModel.getTest(testId);
+            
+            if (!test) return;
+
+            // Check if name or subtitle matches search term
+            const nameMatch = test.name.toLowerCase().includes(searchTerm);
+            const subtitleMatch = test.subtitle && test.subtitle.toLowerCase().includes(searchTerm);
+            const matches = !searchTerm || nameMatch || subtitleMatch;
+
+            // Apply opacity/greying for non-matching columns
+            if (matches) {
+                th.style.opacity = '1';
+                th.style.borderColor = '';
+            } else {
+                th.style.opacity = '0.35';
+                th.style.borderColor = 'rgba(100, 100, 100, 0.2)';
+            }
+        });
     },
 
     _wasSearchActive: false,
@@ -540,6 +592,7 @@ const FilterManager = {
     refresh() {
         this.renderFilterBar();
         this.apply();
+        this.applyActivityFilter();
     },
 
     _esc(s) { return (s || '').replace(/"/g, '&quot;'); }

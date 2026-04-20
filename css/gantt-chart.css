@@ -557,3 +557,290 @@ body.gc-page::before {
 .gc-leaflet-popup .leaflet-popup-tip { background: #1a2330; border: 1px solid rgba(0,217,255,0.12); }
 .gc-leaflet-popup .leaflet-popup-close-button { color: #64748b; font-size: 18px; }
 .gc-leaflet-popup .leaflet-popup-close-button:hover { color: #00d9ff; }
+
+/* ══════════════════════════════════════════════════════════
+   LOCK BUTTON
+   ══════════════════════════════════════════════════════════ */
+.gc-lock-btn.active {
+    color: var(--gc-accent-cyan);
+    border-color: var(--gc-accent-cyan);
+    background: rgba(0, 217, 255, 0.12);
+    box-shadow: 0 0 8px rgba(0, 217, 255, 0.25);
+}
+
+/* When locked, grey out bar resize handles and show a default cursor */
+.gc-gantt-wrapper.gc-locked .gc-bar { cursor: default !important; }
+.gc-gantt-wrapper.gc-locked .gc-bar .gc-bar-edge { display: none; }
+.gc-gantt-wrapper.gc-locked .gc-bar::before,
+.gc-gantt-wrapper.gc-locked .gc-bar::after { display: none !important; }
+
+/* ══════════════════════════════════════════════════════════
+   VIEW-MODE SUB-TABS  (Gantt ↔ Activity Summary)
+   ══════════════════════════════════════════════════════════ */
+.gc-view-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 6px 20px 0;
+    border-bottom: 1px solid var(--gc-border-color);
+    background: var(--gc-bg-secondary);
+}
+.gc-view-tab {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 18px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: 8px 8px 0 0;
+    color: var(--gc-text-secondary);
+    font-family: inherit; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    cursor: pointer; transition: all 0.15s;
+    margin-bottom: -1px;
+}
+.gc-view-tab:hover { color: var(--gc-accent-cyan); background: rgba(0,217,255,0.06); }
+.gc-view-tab.active {
+    color: var(--gc-accent-cyan);
+    background: var(--gc-bg-tertiary);
+    border-color: var(--gc-border-color);
+    border-bottom: 1px solid var(--gc-bg-tertiary);
+    font-weight: 600;
+}
+.gc-view-tab svg { width: 14px; height: 14px; }
+
+/* ══════════════════════════════════════════════════════════
+   ACTIVITY SUMMARY VIEW
+   ══════════════════════════════════════════════════════════ */
+.gc-summary-hint {
+    font-size: 10px;
+    color: #5c6370;
+    letter-spacing: 0.5px;
+}
+.gc-summary-empty {
+    padding: 40px;
+    text-align: center;
+    color: #5c6370;
+    font-size: 13px;
+    font-style: italic;
+}
+.gc-summary-container {
+    width: 100%;
+    overflow-x: auto;
+    background: var(--gc-bg-secondary);
+}
+
+/* Header row + data rows share the same grid template.
+   Info columns kept tight so the mini-gantt on the right gets more room. */
+.gc-sum-header,
+.gc-sum-row {
+    display: grid;
+    grid-template-columns:
+        minmax(160px, 1.3fr)   /* Activity (with chevron) */
+        52px                    /* Type */
+        minmax(90px, 0.9fr)    /* Location */
+        54px                    /* Work Pack */
+        60px                    /* Start */
+        60px                    /* End */
+        44px                    /* Duration */
+        minmax(360px, 3fr);    /* Mini-gantt bar — more room for content */
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    min-width: 920px;
+}
+
+.gc-sum-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: linear-gradient(180deg, #1a1a3a 0%, #151530 100%);
+    color: var(--gc-accent-cyan);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--gc-border-color);
+    padding: 8px 10px;
+}
+
+.gc-sum-row {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: #c7d2e0;
+    font-size: 11px;
+    transition: background 0.1s;
+}
+.gc-sum-row-alt { background: rgba(255,255,255,0.015); }
+.gc-sum-row:hover { background: rgba(0,217,255,0.05); }
+
+/* Sub-activity rows — indented and dimmer */
+.gc-sum-row-sub { background: rgba(139,92,246,0.04); }
+.gc-sum-row-sub.gc-sum-row-alt { background: rgba(139,92,246,0.07); }
+.gc-sum-row-sub .gc-sum-activity-name { color: #c4b5fd; font-weight: 500; font-size: 11px; }
+.gc-sum-row-sub:hover { background: rgba(139,92,246,0.12); }
+
+/* Chevron toggle for parent activities with sub-activities */
+.gc-sum-col-activity {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+.gc-sum-activity-text { min-width: 0; flex: 1; }
+.gc-sum-toggle,
+.gc-sum-toggle-spacer,
+.gc-sum-subchild-dot {
+    flex: 0 0 auto;
+    width: 16px; height: 16px;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+}
+.gc-sum-toggle {
+    color: #64748b;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: color 0.15s, background 0.15s, transform 0.2s;
+}
+.gc-sum-toggle:hover { color: var(--gc-accent-cyan); background: rgba(0,217,255,0.1); }
+.gc-sum-toggle.open { transform: rotate(90deg); color: var(--gc-accent-cyan); }
+.gc-sum-subchild-dot::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: rgba(139,92,246,0.5);
+}
+.gc-sum-subcount {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: rgba(139,92,246,0.15);
+    border: 1px solid rgba(139,92,246,0.3);
+    border-radius: 8px;
+    font-size: 9px;
+    color: #c4b5fd;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.gc-sum-activity-name {
+    font-weight: 600;
+    color: #e2e8f0;
+    font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gc-sum-subtitle {
+    font-size: 9px;
+    color: #fbbf24;
+    font-style: italic;
+    margin-top: 1px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.gc-sum-type {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    line-height: 1.4;
+}
+
+.gc-sum-col-loc,
+.gc-sum-col-wp,
+.gc-sum-col-date,
+.gc-sum-col-dur {
+    font-size: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.gc-sum-col-date,
+.gc-sum-col-dur {
+    color: #94a3b8;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+}
+.gc-sum-col-dur { text-align: right; }
+
+/* Mini-gantt track on the right */
+.gc-sum-col-bar { min-width: 0; }
+.gc-sum-track {
+    position: relative;
+    height: 14px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 3px;
+    overflow: visible;
+}
+.gc-sum-bar {
+    position: absolute;
+    top: 2px; bottom: 2px;
+    min-width: 3px;
+    border-radius: 2px;
+    box-shadow: 0 0 4px rgba(0,217,255,0.2);
+    transition: filter 0.15s;
+}
+.gc-sum-row:hover .gc-sum-bar { filter: brightness(1.2); }
+.gc-sum-bar-point {
+    width: 4px;
+    border-radius: 2px;
+}
+.gc-sum-today {
+    position: absolute;
+    top: -1px; bottom: -1px;
+    width: 1px;
+    background: #ef4444;
+    pointer-events: none;
+    z-index: 1;
+    box-shadow: 0 0 4px rgba(239,68,68,0.6);
+}
+
+/* Month ticks in the header axis */
+.gc-sum-axis {
+    position: relative;
+    height: 14px;
+    width: 100%;
+}
+.gc-sum-tick {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: #64748b;
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+.gc-sum-tick::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    width: 1px;
+    height: 4px;
+    background: rgba(255,255,255,0.12);
+}
+
+/* Light theme tweaks */
+body.light-theme .gc-summary-container { background: #fff; }
+body.light-theme .gc-sum-header { background: #f8fafc; color: #2563eb; border-bottom-color: #e2e8f0; }
+body.light-theme .gc-sum-row { color: #334155; border-bottom-color: #f1f5f9; }
+body.light-theme .gc-sum-row-alt { background: #fafbfd; }
+body.light-theme .gc-sum-row:hover { background: #eff6ff; }
+body.light-theme .gc-sum-activity-name { color: #0f172a; }
+body.light-theme .gc-sum-subtitle { color: #d97706; }
+body.light-theme .gc-sum-col-date,
+body.light-theme .gc-sum-col-dur { color: #64748b; }
+body.light-theme .gc-sum-track { background: #f1f5f9; border-color: #e2e8f0; }
+body.light-theme .gc-sum-today { background: #dc2626; }
+body.light-theme .gc-sum-tick { color: #94a3b8; }
+body.light-theme .gc-sum-row-sub { background: rgba(139,92,246,0.06); }
+body.light-theme .gc-sum-row-sub.gc-sum-row-alt { background: rgba(139,92,246,0.1); }
+body.light-theme .gc-sum-row-sub .gc-sum-activity-name { color: #7c3aed; }
+body.light-theme .gc-sum-row-sub:hover { background: rgba(139,92,246,0.14); }
+body.light-theme .gc-sum-toggle { color: #94a3b8; }
+body.light-theme .gc-sum-toggle:hover { color: #2563eb; background: rgba(37,99,235,0.1); }
+body.light-theme .gc-sum-toggle.open { color: #2563eb; }
+body.light-theme .gc-sum-subcount { background: rgba(139,92,246,0.12); border-color: rgba(139,92,246,0.3); color: #7c3aed; }
+body.light-theme .gc-view-tabs { background: #fff; border-bottom-color: #e2e8f0; }
+body.light-theme .gc-view-tab.active { background: #f8fafc; border-color: #e2e8f0; border-bottom-color: #f8fafc; color: #2563eb; }
+body.light-theme .gc-lock-btn.active { color: #2563eb; border-color: #2563eb; background: rgba(37,99,235,0.08); }

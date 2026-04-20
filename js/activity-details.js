@@ -21,6 +21,7 @@ const ActivityDetails = {
             '<div class="ad-modal">' +
                 '<div class="ad-header">' +
                     '<h3 id="adTitle"></h3>' +
+                    '<input type="text" id="adSubtitle" placeholder="Doc Nr." maxlength="60" style="background: #f5f5f5; border: 1px solid #ccc; padding: 4px 8px; border-radius: 3px; font-size: 13px; color: #666; margin-top: 4px;" onpaste="return true;">' +
                     '<div class="ad-meta" id="adMeta"></div>' +
                 '</div>' +
                 '<div class="ad-body">' +
@@ -72,6 +73,8 @@ const ActivityDetails = {
 
         // Title and meta
         document.getElementById('adTitle').textContent = test.name;
+        var subtitleEl = document.getElementById('adSubtitle');
+        if (subtitleEl) subtitleEl.value = test.subtitle || '';
         var meta = [];
         if (test.type) meta.push(test.type);
         if (test.location) meta.push(test.location);
@@ -166,10 +169,17 @@ const ActivityDetails = {
 
         var overview = (document.getElementById('adOverview') || {}).innerHTML || '';
         var bullets = (document.getElementById('adNotes') || {}).innerHTML || '';
+        var subtitle = (document.getElementById('adSubtitle') || {}).value || '';
 
         // Clean empty HTML
         overview = this._clean(overview);
         bullets = this._clean(bullets);
+
+        // Save subtitle to test object
+        var test = DataModel.getTest(this._activeTestId);
+        if (test) {
+            test.subtitle = subtitle;
+        }
 
         // Save to flow storage
         var f = StorageManager.loadFlow() || {};

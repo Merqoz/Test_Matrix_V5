@@ -320,6 +320,7 @@ const ExportManager = {
 
         let infoHtml = `
             <strong>Test Activity:</strong> ${test.name}<br>
+            ${test.subtitle ? `<strong>Subtitle:</strong> <em>${test.subtitle}</em><br>` : ''}
             <strong>UID:</strong> ${test.uid || 'N/A'}<br>
             <strong>Type:</strong> ${test.type}<br>
             <strong>Location:</strong> ${test.location}<br>
@@ -331,7 +332,7 @@ const ExportManager = {
         if (test.subActivities && test.subActivities.length > 0) {
             infoHtml += `<br><br><strong>Sub-Activities (${test.subActivities.length}):</strong>`;
             test.subActivities.forEach(sub => {
-                infoHtml += `<br><span style="color:#a78bfa;padding-left:12px">└ ${sub.name} — ${sub.type} @ ${sub.location}</span>`;
+                infoHtml += `<br><span style="color:#a78bfa;padding-left:12px">└ ${sub.name}${sub.subtitle ? ` (${sub.subtitle})` : ''} — ${sub.type} @ ${sub.location}</span>`;
             });
         }
 
@@ -984,6 +985,24 @@ const ExportManager = {
         });
         html += `</tr>`;
 
+        // Doc Nr. row (Row 5 - subtitle row)
+        html += `<tr>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+        html += `<th style="${fixedHeaderStyle}"></th>`;
+
+        allTests.forEach(({ test, isSub }) => {
+            const bg = isSub ? C.subBg : C.testHdrBg;
+            const docNrContent = test.subtitle ? `<div style="color:${C.textDim}; font-size:8px; font-style:italic;">${esc(test.subtitle)}</div>` : '';
+            html += `<th style="${testHeaderStyle(bg)}; padding:4px 6px;">${docNrContent}</th>`;
+        });
+        html += `</tr>`;
+
         // Data rows
         data.sections.forEach(section => {
             // Section header row
@@ -1029,7 +1048,7 @@ const ExportManager = {
         html += `<tr><td colspan="7" style="height:8px; background:${C.bodyBg};"></td></tr>`;
 
         html += `<tr>`;
-        ['UID', 'Name', 'Type', 'Location', 'Workpack', 'Start', 'End'].forEach(h => {
+        ['UID', 'Name', 'Subtitle', 'Type', 'Location', 'Workpack', 'Start', 'End'].forEach(h => {
             html += `<th style="${fixedHeaderStyle}">${h}</th>`;
         });
         html += `</tr>`;
@@ -1042,6 +1061,7 @@ const ExportManager = {
             html += `<tr>`;
             html += `<td style="${cellBase} background:${rowBg}; font-family:'Consolas','Monaco',monospace; color:${C.cyan}; font-size:10px;">${esc(test.uid || '')}</td>`;
             html += `<td style="${cellBase} background:${rowBg}; ${nameStyle}">${namePrefix}${esc(test.name)}</td>`;
+            html += `<td style="${cellBase} background:${rowBg}; color:${C.textDim}; font-style:italic; font-size:11px;">${esc(test.subtitle || '')}</td>`;
             html += `<td style="${cellBase} background:${rowBg}; text-align:center;"><span style="color:${typeColor}; font-weight:700;">${esc(test.type)}</span></td>`;
             html += `<td style="${cellBase} background:${rowBg};">${esc(test.location || '')}</td>`;
             html += `<td style="${cellBase} background:${rowBg};">`;
@@ -1113,16 +1133,16 @@ const ExportManager = {
     _buildTestCSV(test, rows) {
         let csv = `Test Activity Export\n`;
         csv += `UID,${test.uid||''}\n`;
-        csv += `Test Name,${test.name}\nType,${test.type}\nLocation,${test.location}\n`;
+        csv += `Test Name,${test.name}\nSubtitle,${test.subtitle||''}\nType,${test.type}\nLocation,${test.location}\n`;
         csv += `Workpack,${test.workpack||''}\n`;
         csv += `Start Date,${test.startDate||'N/A'}\nEnd Date,${test.endDate||'N/A'}\n`;
 
         // Include sub-activities if any
         if (test.subActivities && test.subActivities.length > 0) {
             csv += `\nSub-Activities (${test.subActivities.length})\n`;
-            csv += `UID,Name,Type,Location,Workpack,Start,End\n`;
+            csv += `UID,Name,Subtitle,Type,Location,Workpack,Start,End\n`;
             test.subActivities.forEach(sub => {
-                csv += [sub.uid||'', sub.name, sub.type, sub.location, sub.workpack||'', sub.startDate||'', sub.endDate||'']
+                csv += [sub.uid||'', sub.name, sub.subtitle||'', sub.type, sub.location, sub.workpack||'', sub.startDate||'', sub.endDate||'']
                     .map(c => this._csvEscape(c)).join(',') + '\n';
             });
         }

@@ -5,6 +5,31 @@ All notable changes to this project are documented here.
 
 ---
 
+## [2.9.0] — 2026-04-20
+
+### Fixed — Doc Nr. Missing on Flow Nodes
+- Flow node metadata now shows the `Doc Nr.` field entered in `index.html`, placed right after the start date
+- Root cause: `FlowApp.loadData()` and the sync-refresh path both rebuilt `FlowData.nodes` from `testColumns` without copying the `subtitle` property — so `node.subtitle` was always `undefined` and the existing render code (`flow-nodes.js` line 162) silently dropped it
+- Fix: add `subtitle: test.subtitle || ''` to both node-construction paths in `flow-app.js` (lines 104-116 and 469-479)
+
+### Improved — Edge Endpoint Drag Interaction
+- **Snap-to-port preview:** while dragging an edge endpoint, the live preview line now snaps to the nearest port of the node under the cursor (not just the cursor position) — the curve bends naturally into the target side
+- **Anchor indication:** the non-dragged endpoint is now visually anchored (dashed dim outline) so it's clear which end stays fixed
+- **Escape to cancel:** pressing Esc mid-drag cancels without applying the change and restores the original edge
+- **Port highlight on target:** the specific port indicator (left/right/top/bottom) that will be chosen on release is now highlighted during hover
+- **Missing CSS fix:** `.edge-drag-preview` had light-theme styling but no dark-theme rules — the preview line is now properly visible in both themes, with a flowing dash animation that turns solid when snapped to a target
+- **Larger, more forgiving drop zone:** node hit-area expanded from 12px to 18px padding; pulsing glow on drop-target nodes
+- **Bigger handle hit target:** invisible 16px-radius grab ring around each endpoint dot — easier to grab on touchpads/small handles
+- **No-op on miss:** releasing outside any node now cleanly restores the original edge instead of guessing a side
+
+### Improved — PDF & PPTX "Connections & Equipment Transfers"
+- Last page of the PDF export (and matching PPTX slide) now filters edges the same way the flow diagram does — only edges whose **both endpoints are visible** are listed
+- Matches the visibility logic already used by the "Test Activity Summary" page: respects `DataModel.hiddenActivities` AND `FlowData.hiddenLanes`
+- Summary line above the table shows how many connections are listed, and how many are hidden because an endpoint is hidden (e.g. `12 connections shown (3 hidden — endpoint not visible)`)
+- Affects `FlowExport.exportPDF()` and `FlowExport.exportPPTX()`
+
+---
+
 ## [2.8.0] — 2026-04-10
 
 ### Added — File Attachments on Flow Nodes

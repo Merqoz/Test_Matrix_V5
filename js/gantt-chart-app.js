@@ -20,6 +20,8 @@ var GCApp = {
     _activeTypes:{},  // {FAT:true, FIT:true, ...}
     _activeWps:{},    // {WP03:true, WP05:true, ...}
     _hiddenWpRows:{}, // {WP04:true, ...} — hidden from milestone timeline
+    _locked:false,    // if true, bars cannot be dragged/resized
+    _viewMode:'gantt',// 'gantt' or 'summary'
 
     _locationCoordsFallback:{
         'Norway, Egersund':{lat:58.45,lng:5.99},'Norway, \u00C5gotnes':{lat:60.37,lng:5.01},
@@ -37,7 +39,7 @@ var GCApp = {
     init:function(){
         StorageManager.init();
         // Load custom locations
-        try{var p=StorageManager.loadPrefs();if(p&&p.customLocations){for(var name in p.customLocations){DataModel.locations[name]=p.customLocations[name];}}if(p&&p.gcHiddenWpRows){this._hiddenWpRows=p.gcHiddenWpRows;}}catch(e){}
+        try{var p=StorageManager.loadPrefs();if(p&&p.customLocations){for(var name in p.customLocations){DataModel.locations[name]=p.customLocations[name];}}if(p&&p.gcHiddenWpRows){this._hiddenWpRows=p.gcHiddenWpRows;}if(p&&p.gcLocked)this._locked=true;if(p&&p.gcViewMode==='summary')this._viewMode='summary';}catch(e){}
         this._loadMatrix();this._loadBars();this._buildEquipList();
         // Initialize FlowData for milestone access
         if(typeof FlowData!=='undefined'){
@@ -48,6 +50,9 @@ var GCApp = {
         Nav.render('gantt-chart');
         this._setInitialTime();
         this.render();this._setupControls();this._setupDrag();this._setupContextMenu();this._setupMapDrag();this._setupMapClick();
+        // Reflect persisted lock + view-mode prefs in the UI
+        this._updateLockUI();
+        this.setViewMode(this._viewMode);
         if(typeof UndoManager!=='undefined') UndoManager.init();
         var self=this;setTimeout(function(){self._renderMap();self._updateItemList();},50);
         // Cross-tab sync: reload if matrix page updates test activities
@@ -468,7 +473,9 @@ var GCApp = {
     _setupDrag:function(){
         var self=this;
         document.addEventListener('mousedown',function(e){
-            if(e.button!==0)return;var barEl=e.target.closest('.gc-bar');if(!barEl)return;e.preventDefault();
+            if(e.button!==0)return;var barEl=e.target.closest('.gc-bar');if(!barEl)return;
+            if(self._locked){ return; }  // lock mode — do not initiate drag
+            e.preventDefault();
             var sIdx=parseInt(barEl.dataset.sec),rIdx=parseInt(barEl.dataset.row),barId=parseInt(barEl.dataset.barId);
             var sec=self._equipSchedules[sIdx];if(!sec)return;var row=sec.rows[rIdx];if(!row)return;
             var bar=row.bars.find(function(b){return b.id===barId;});if(!bar)return;
@@ -1296,7 +1303,8 @@ var GCApp = {
     },
 
     _renderFilterBar:function(){
-        var el=document.getElementById('gcFilterBar');if(!el)return;
+        var els=document.querySelectorAll('#gcFilterBar, #gcFilterBarSummary');
+        if(!els.length)return;
         var self=this;
 
         // Load locked state only once
@@ -1319,7 +1327,7 @@ var GCApp = {
             h+='<button class="gc-chip'+(active?' active':'')+'" onclick="GCApp.toggleFilter(\'wp\',\''+self._esc(wp)+'\')" oncontextmenu="event.preventDefault();GCApp._showFilterCtx(event,\'wp\',\''+self._esc(wp)+'\')"><span class="gc-chip-dot" style="background:'+c+'"></span>'+self._esc(wp)+(locked?' \uD83D\uDD12':'')+'</button>';
         });
         if(self._hasActiveFilter()) h+='<button class="gc-chip gc-chip-clear" onclick="GCApp.clearFilter()">\u2715 Clear</button>';
-        el.innerHTML=h;
+        els.forEach(function(el){ el.innerHTML=h; });
     },
 
     _hasActiveFilter:function(){for(var k in this._activeTypes)if(this._activeTypes[k])return true;for(var k in this._activeWps)if(this._activeWps[k])return true;return false;},
@@ -1328,6 +1336,7 @@ var GCApp = {
         if(kind==='actType'){this._activeTypes[value]=!this._activeTypes[value];if(!this._activeTypes[value])delete this._activeTypes[value];}
         else{this._activeWps[value]=!this._activeWps[value];if(!this._activeWps[value])delete this._activeWps[value];}
         this.render();
+        if(this._viewMode==='summary') this._renderSummary();
     },
 
     clearFilter:function(){
@@ -1335,6 +1344,7 @@ var GCApp = {
         for(var k in this._lockedTypes)if(this._lockedTypes[k])this._activeTypes[k]=true;
         for(var k in this._lockedWps)if(this._lockedWps[k])this._activeWps[k]=true;
         this.render();
+        if(this._viewMode==='summary') this._renderSummary();
     },
 
     _showFilterCtx:function(event,kind,value){
@@ -1950,6 +1960,311 @@ var GCApp = {
         this._renderWpPanel();
         StorageManager.save({prefs:{gcHiddenWpRows:this._hiddenWpRows}});
         this._renderGantt();
+    },
+
+    // ── Lock toggle (bars free-move vs. locked) ──────────────
+    toggleLock:function(){
+        this._locked=!this._locked;
+        this._updateLockUI();
+        StorageManager.save({prefs:{gcLocked:this._locked}});
+    },
+
+    _updateLockUI:function(){
+        var btn=document.getElementById('gcLockBtn');
+        var lbl=document.getElementById('gcLockLabel');
+        var ico=document.getElementById('gcLockIcon');
+        var body=document.getElementById('gcGanttRows');
+        if(!btn||!lbl||!ico)return;
+        if(this._locked){
+            btn.classList.add('active');
+            lbl.textContent='Locked';
+            // Closed padlock
+            ico.innerHTML='<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+            if(body) body.classList.add('gc-locked');
+            var w=document.querySelector('.gc-gantt-wrapper');
+            if(w) w.classList.add('gc-locked');
+        } else {
+            btn.classList.remove('active');
+            lbl.textContent='Unlocked';
+            // Open padlock
+            ico.innerHTML='<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>';
+            if(body) body.classList.remove('gc-locked');
+            var w2=document.querySelector('.gc-gantt-wrapper');
+            if(w2) w2.classList.remove('gc-locked');
+        }
+    },
+
+    // ── View mode toggle (Gantt vs. Activity Summary) ────────
+    setViewMode:function(mode){
+        if(mode!=='gantt'&&mode!=='summary')return;
+        this._viewMode=mode;
+        var g=document.getElementById('gcViewGantt');
+        var s=document.getElementById('gcViewSummary');
+        var tg=document.getElementById('gcViewTabGantt');
+        var ts=document.getElementById('gcViewTabSummary');
+        if(g) g.style.display = (mode==='gantt') ? '' : 'none';
+        if(s) s.style.display = (mode==='summary') ? '' : 'none';
+        if(tg) tg.classList.toggle('active', mode==='gantt');
+        if(ts) ts.classList.toggle('active', mode==='summary');
+        if(mode==='summary') this._renderSummary();
+        StorageManager.save({prefs:{gcViewMode:mode}});
+    },
+
+    // ── Activity Summary Renderer ────────────────────────────
+    // Produces a list view similar to the PDF "Activity Summary" page,
+    // with a mini-gantt on the right showing each activity's start→end span
+    // against the chart's current date range. Sub-activities can be
+    // expanded / collapsed — state is shared with DataModel.expandedSubActivities.
+    _renderSummary:function(){
+        var container=document.getElementById('gcSummaryContainer');
+        var hint=document.getElementById('gcSummaryHint');
+        if(!container)return;
+
+        var self = this;
+        var hasTypeFilter = false, hasWpFilter = false;
+        for(var kk in this._activeTypes) if(this._activeTypes[kk]){ hasTypeFilter = true; break; }
+        for(var kk in this._activeWps)   if(this._activeWps[kk]){ hasWpFilter = true; break; }
+
+        function passesFilter(t){
+            // When chips are active, activity must match at least one in each
+            // active category (type / WP) — matches the Gantt view semantics.
+            if(hasTypeFilter && !self._activeTypes[t.type]) return false;
+            if(hasWpFilter   && !self._activeWps[t.workpack]) return false;
+            return true;
+        }
+
+        var tests=(DataModel.testColumns||[]).filter(function(t){
+            if(!t) return false;
+            if(typeof DataModel.isActivityVisible==='function' && !DataModel.isActivityVisible(t.id)) return false;
+            // Parent passes if it matches, OR if any of its sub-activities match
+            if(passesFilter(t)) return true;
+            if(t.subActivities && t.subActivities.length > 0){
+                for(var i=0; i<t.subActivities.length; i++){
+                    if(passesFilter(t.subActivities[i])) return true;
+                }
+            }
+            return false;
+        });
+
+        if(tests.length===0){
+            container.innerHTML='<div class="gc-summary-empty">'+
+                ((hasTypeFilter||hasWpFilter)
+                    ? 'No test activities match the current filter.'
+                    : 'No test activities to summarize.')+
+                '</div>';
+            if(hint) hint.textContent='';
+            return;
+        }
+
+        // Date axis from _rangeStart / _rangeEnd
+        var rangeStart=this._rangeStart ? new Date(this._rangeStart) : null;
+        var rangeEnd  =this._rangeEnd   ? new Date(this._rangeEnd)   : null;
+        var hasRange = rangeStart && rangeEnd && rangeEnd > rangeStart;
+        var totalMs  = hasRange ? (rangeEnd - rangeStart) : 0;
+
+        function pct(dateStr){
+            if(!hasRange || !dateStr) return null;
+            var d=new Date(dateStr);
+            if(isNaN(d)) return null;
+            var clamped=Math.max(rangeStart.getTime(), Math.min(rangeEnd.getTime(), d.getTime()));
+            return ((clamped - rangeStart.getTime()) / totalMs) * 100;
+        }
+
+        function esc(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; }
+        function fmt(d){ if(!d) return '—'; var x=new Date(d); if(isNaN(x))return '—';
+            var dd=String(x.getDate()).padStart(2,'0'),mm=String(x.getMonth()+1).padStart(2,'0'),yy=String(x.getFullYear()).slice(-2);
+            return dd+'.'+mm+'.'+yy;
+        }
+        function duration(s,e){ if(!s||!e) return '—'; var a=new Date(s),b=new Date(e); if(isNaN(a)||isNaN(b)) return '—';
+            var days=Math.round((b-a)/86400000); return days>=0 ? (days+'d') : '—';
+        }
+
+        var typeColors={'FAT':'#00d4ff','EFAT':'#10b981','FIT':'#8b5cf6','SIT':'#f59e0b','M-SIT':'#ef4444','SRT':'#ec4899'};
+
+        // Month ticks for the header axis
+        var tickHtml='';
+        if(hasRange){
+            var months=[]; var d=new Date(rangeStart.getFullYear(), rangeStart.getMonth(), 1);
+            while(d<=rangeEnd){ months.push(new Date(d)); d.setMonth(d.getMonth()+1); }
+            if(months.length>10){
+                var step=Math.ceil(months.length/10);
+                months=months.filter(function(_,i){return i%step===0;});
+            }
+            months.forEach(function(m){
+                var p=pct(m);
+                if(p!=null){
+                    var lbl=m.toLocaleString('en',{month:'short',year:'2-digit'});
+                    tickHtml+='<div class="gc-sum-tick" style="left:'+p.toFixed(3)+'%"><span>'+lbl+'</span></div>';
+                }
+            });
+        }
+
+        // ── Build a single row (main or sub-activity) ─────────
+        function buildRow(t, opts) {
+            opts = opts || {};
+            var color = typeColors[t.type] || '#888';
+            var sPct = pct(t.startDate);
+            var ePct = pct(t.endDate);
+            var barHtml='';
+            if(sPct!=null && ePct!=null && ePct>sPct){
+                barHtml='<div class="gc-sum-bar" style="left:'+sPct.toFixed(3)+'%;width:'+(ePct-sPct).toFixed(3)+'%;background:'+color+';"></div>';
+            } else if(sPct!=null){
+                barHtml='<div class="gc-sum-bar gc-sum-bar-point" style="left:'+sPct.toFixed(3)+'%;background:'+color+';"></div>';
+            }
+            var today=new Date();
+            var todayPct=pct(today);
+            var todayLine = (todayPct!=null) ? '<div class="gc-sum-today" style="left:'+todayPct.toFixed(3)+'%"></div>' : '';
+
+            var isSub = !!opts.isSub;
+            var hasSubs = !!(t.subActivities && t.subActivities.length > 0);
+            var expanded = hasSubs && DataModel.isSubExpanded(t.id);
+
+            // Toggle (chevron) or spacer — always same width so columns align
+            var toggleHtml;
+            if (hasSubs) {
+                toggleHtml = '<span class="gc-sum-toggle'+(expanded?' open':'')+
+                    '" onclick="event.stopPropagation();GCApp.toggleSummarySubs('+t.id+')" title="'+
+                    (expanded?'Collapse':'Expand')+' sub-activities">'+
+                    '<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>'+
+                    '</span>';
+            } else if (isSub) {
+                toggleHtml = '<span class="gc-sum-subchild-dot"></span>';
+            } else {
+                toggleHtml = '<span class="gc-sum-toggle-spacer"></span>';
+            }
+
+            var rowClass = 'gc-sum-row'
+                + (opts.alt ? ' gc-sum-row-alt' : '')
+                + (isSub ? ' gc-sum-row-sub' : '')
+                + (hasSubs ? ' gc-sum-has-subs' : '');
+
+            var subtitle = t.subtitle ? '<div class="gc-sum-subtitle">'+esc(t.subtitle)+'</div>' : '';
+            var subCount = (hasSubs && !expanded)
+                ? '<span class="gc-sum-subcount">+'+t.subActivities.length+'</span>'
+                : '';
+
+            return '<div class="'+rowClass+'">'
+                + '<div class="gc-sum-col-activity">'
+                    + toggleHtml
+                    + '<div class="gc-sum-activity-text">'
+                        + '<div class="gc-sum-activity-name">'+esc(t.name||'—')+subCount+'</div>'
+                        + subtitle
+                    + '</div>'
+                + '</div>'
+                + '<div class="gc-sum-col-type"><span class="gc-sum-type" style="background:'+color+'22;color:'+color+';border:1px solid '+color+'55;">'+esc(t.type||'')+'</span></div>'
+                + '<div class="gc-sum-col-loc" title="'+esc(t.location||'')+'">'+esc(t.location||'—')+'</div>'
+                + '<div class="gc-sum-col-wp">'+esc(t.workpack||'—')+'</div>'
+                + '<div class="gc-sum-col-date">'+fmt(t.startDate)+'</div>'
+                + '<div class="gc-sum-col-date">'+fmt(t.endDate)+'</div>'
+                + '<div class="gc-sum-col-dur">'+duration(t.startDate,t.endDate)+'</div>'
+                + '<div class="gc-sum-col-bar"><div class="gc-sum-track">'+todayLine+barHtml+'</div></div>'
+                + '</div>';
+        }
+
+        var html='';
+        html+='<div class="gc-sum-header">'
+            + '<div class="gc-sum-col-activity"><span class="gc-sum-toggle-spacer"></span>Activity</div>'
+            + '<div class="gc-sum-col-type">Type</div>'
+            + '<div class="gc-sum-col-loc">Location</div>'
+            + '<div class="gc-sum-col-wp">WP</div>'
+            + '<div class="gc-sum-col-date">Start</div>'
+            + '<div class="gc-sum-col-date">End</div>'
+            + '<div class="gc-sum-col-dur">Days</div>'
+            + '<div class="gc-sum-col-bar"><div class="gc-sum-axis">'+tickHtml+'</div></div>'
+            + '</div>';
+
+        var rowIdx = 0;
+        var subCount = 0;
+        tests.forEach(function(t){
+            html += buildRow(t, { alt: (rowIdx % 2 === 1) });
+            rowIdx++;
+            // Render expanded sub-activities directly below the parent, honoring filters
+            if (t.subActivities && t.subActivities.length > 0 && DataModel.isSubExpanded(t.id)) {
+                t.subActivities.forEach(function(sub){
+                    if(!passesFilter(sub)) return;
+                    html += buildRow(sub, { alt: (rowIdx % 2 === 1), isSub: true });
+                    rowIdx++;
+                    subCount++;
+                });
+            }
+        });
+
+        container.innerHTML=html;
+
+        var summary = tests.length + ' activit' + (tests.length===1?'y':'ies');
+        if (subCount > 0) summary += ' + ' + subCount + ' sub-activit' + (subCount===1?'y':'ies');
+        if (hasRange) summary += ' · ' + fmt(rangeStart) + ' → ' + fmt(rangeEnd);
+        if (hint) hint.textContent = summary;
+
+        this._updateSumExpandBtn();
+    },
+
+    /** Toggle a parent test's sub-activities in the summary view. Shares state
+     *  with DataModel.expandedSubActivities so it stays in sync with the matrix. */
+    toggleSummarySubs:function(parentId){
+        DataModel.toggleSubExpanded(parentId);
+        try { StorageManager.save({ prefs: { expandedSubActivities: DataModel.expandedSubActivities } }); } catch(e){}
+        this._renderSummary();
+    },
+
+    /** Expand or collapse every parent with sub-activities, in one click.
+     *  If ANY parent is currently expanded → collapse all.
+     *  If ALL parents are collapsed → expand all. */
+    toggleAllSummarySubs:function(){
+        var parents=(DataModel.testColumns||[]).filter(function(t){
+            return t && t.subActivities && t.subActivities.length > 0
+                && (typeof DataModel.isActivityVisible !== 'function' || DataModel.isActivityVisible(t.id));
+        });
+        if(parents.length===0) return;
+
+        var anyExpanded = parents.some(function(p){ return DataModel.isSubExpanded(p.id); });
+        if(anyExpanded){
+            // Collapse all by clearing only the parent IDs in our list
+            parents.forEach(function(p){
+                if(DataModel.isSubExpanded(p.id)) DataModel.toggleSubExpanded(p.id);
+            });
+        } else {
+            // Expand all
+            parents.forEach(function(p){
+                if(!DataModel.isSubExpanded(p.id)) DataModel.toggleSubExpanded(p.id);
+            });
+        }
+        try { StorageManager.save({ prefs: { expandedSubActivities: DataModel.expandedSubActivities } }); } catch(e){}
+        this._renderSummary();
+    },
+
+    /** Update the "Expand All / Collapse All" button label + icon to reflect
+     *  what clicking it right now would do. Called at the end of _renderSummary. */
+    _updateSumExpandBtn:function(){
+        var btn=document.getElementById('gcSumExpandBtn');
+        var lbl=document.getElementById('gcSumExpandLabel');
+        var ico=document.getElementById('gcSumExpandIcon');
+        if(!btn||!lbl||!ico) return;
+
+        var parents=(DataModel.testColumns||[]).filter(function(t){
+            return t && t.subActivities && t.subActivities.length > 0
+                && (typeof DataModel.isActivityVisible !== 'function' || DataModel.isActivityVisible(t.id));
+        });
+
+        // Hide button entirely if there's nothing to expand/collapse
+        if(parents.length===0){
+            btn.style.display='none';
+            return;
+        }
+        btn.style.display='';
+
+        var anyExpanded = parents.some(function(p){ return DataModel.isSubExpanded(p.id); });
+        if(anyExpanded){
+            lbl.textContent='Collapse All';
+            btn.classList.add('active');
+            // Up-chevron
+            ico.innerHTML='<polyline points="18 15 12 9 6 15"/>';
+        } else {
+            lbl.textContent='Expand All';
+            btn.classList.remove('active');
+            // Down-chevron
+            ico.innerHTML='<polyline points="6 9 12 15 18 9"/>';
+        }
     }
 };
 

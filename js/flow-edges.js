@@ -732,31 +732,44 @@ const FlowEdges = {
         var toPos = FlowNodes.getPortPosition(edge.toNodeId, ports.toSide, toIdx, toTotal);
         if (!fromPos || !toPos) return;
 
-        // Create from-handle
-        var hFrom = document.createElementNS('http://www.w3.org/2000/svg','g');
-        hFrom.classList.add('edge-handle');
-        hFrom.dataset.end = 'from';
-        var cFrom = document.createElementNS('http://www.w3.org/2000/svg','circle');
-        cFrom.setAttribute('cx', fromPos.x); cFrom.setAttribute('cy', fromPos.y); cFrom.setAttribute('r', '9');
-        cFrom.classList.add('edge-handle-dot');
-        var tFrom = document.createElementNS('http://www.w3.org/2000/svg','text');
-        tFrom.setAttribute('x', fromPos.x); tFrom.setAttribute('y', fromPos.y - 14);
-        tFrom.classList.add('edge-handle-label'); tFrom.textContent = ports.fromSide;
-        hFrom.appendChild(cFrom); hFrom.appendChild(tFrom);
-        svg.appendChild(hFrom);
+        // Helper — build a handle group with an invisible hit ring, a halo, and a visible dot
+        function buildHandle(pos, end, sideLabel) {
+            var g = document.createElementNS('http://www.w3.org/2000/svg','g');
+            g.classList.add('edge-handle', 'edge-endpoint-handle');
+            g.dataset.end = end;
 
-        // Create to-handle
-        var hTo = document.createElementNS('http://www.w3.org/2000/svg','g');
-        hTo.classList.add('edge-handle');
-        hTo.dataset.end = 'to';
-        var cTo = document.createElementNS('http://www.w3.org/2000/svg','circle');
-        cTo.setAttribute('cx', toPos.x); cTo.setAttribute('cy', toPos.y); cTo.setAttribute('r', '9');
-        cTo.classList.add('edge-handle-dot');
-        var tTo = document.createElementNS('http://www.w3.org/2000/svg','text');
-        tTo.setAttribute('x', toPos.x); tTo.setAttribute('y', toPos.y - 14);
-        tTo.classList.add('edge-handle-label'); tTo.textContent = ports.toSide;
-        hTo.appendChild(cTo); hTo.appendChild(tTo);
-        svg.appendChild(hTo);
+            // Soft halo behind the dot (purely decorative)
+            var halo = document.createElementNS('http://www.w3.org/2000/svg','circle');
+            halo.setAttribute('cx', pos.x); halo.setAttribute('cy', pos.y); halo.setAttribute('r', '14');
+            halo.classList.add('edge-handle-halo');
+            g.appendChild(halo);
+
+            // Big invisible hit target for easier grabbing
+            var hit = document.createElementNS('http://www.w3.org/2000/svg','circle');
+            hit.setAttribute('cx', pos.x); hit.setAttribute('cy', pos.y); hit.setAttribute('r', '16');
+            hit.classList.add('edge-handle-hit');
+            g.appendChild(hit);
+
+            // Visible dot
+            var c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+            c.setAttribute('cx', pos.x); c.setAttribute('cy', pos.y); c.setAttribute('r', '9');
+            c.classList.add('edge-handle-dot');
+            g.appendChild(c);
+
+            // Side label
+            var t = document.createElementNS('http://www.w3.org/2000/svg','text');
+            t.setAttribute('x', pos.x); t.setAttribute('y', pos.y - 16);
+            t.classList.add('edge-handle-label');
+            t.textContent = sideLabel;
+            g.appendChild(t);
+
+            return { g: g, halo: halo, hit: hit, circle: c, text: t };
+        }
+
+        var hFrom = buildHandle(fromPos, 'from', ports.fromSide);
+        svg.appendChild(hFrom.g);
+        var hTo = buildHandle(toPos, 'to', ports.toSide);
+        svg.appendChild(hTo.g);
 
         // Show port side indicators
         this._showPortIndicators(edge.fromNodeId);
@@ -766,22 +779,37 @@ const FlowEdges = {
         this._showSlotIndicators(svg, edge, 'from', fromKey, ports.fromSide, fromIdx, fromTotal);
         this._showSlotIndicators(svg, edge, 'to', toKey, ports.toSide, toIdx, toTotal);
 
-        // Drag handlers — bind on BOTH the g wrapper and the circle for maximum reliability
+        // Drag handlers — bind on ALL parts of the handle for maximum reliability
         var handlePairs = [
-            { g: hFrom, circle: cFrom, text: tFrom, end: 'from', nodeId: edge.fromNodeId },
-            { g: hTo, circle: cTo, text: tTo, end: 'to', nodeId: edge.toNodeId }
+            { h: hFrom, end: 'from', nodeId: edge.fromNodeId },
+            { h: hTo,   end: 'to',   nodeId: edge.toNodeId   }
         ];
         handlePairs.forEach(function(hp) {
             function startDrag(e) {
                 if (e.button !== 0) return;
                 e.preventDefault(); e.stopPropagation();
-                self._handleDrag = { edgeId: edgeId, end: hp.end, nodeId: hp.nodeId, handle: hp.g, circle: hp.circle, text: hp.text };
-                hp.g.style.cursor = 'grabbing';
+                self._handleDrag = {
+                    edgeId: edgeId,
+                    end: hp.end,
+                    nodeId: hp.nodeId,
+                    handle: hp.h.g,
+                    circle: hp.h.circle,
+                    halo: hp.h.halo,
+                    text: hp.h.text,
+                    startX: e.clientX,
+                    startY: e.clientY
+                };
+                hp.h.g.classList.add('edge-handle-dragging');
+                // Mark the OTHER endpoint as anchored (visually fixed)
+                var otherG = hp.end === 'from' ? hTo.g : hFrom.g;
+                if (otherG) otherG.classList.add('edge-handle-anchored');
                 document.addEventListener('mousemove', self._onHandleMove);
-                document.addEventListener('mouseup', self._onHandleUp);
+                document.addEventListener('mouseup',   self._onHandleUp);
+                document.addEventListener('keydown',   self._onHandleKey);
             }
-            hp.g.addEventListener('mousedown', startDrag);
-            hp.circle.addEventListener('mousedown', startDrag);
+            hp.h.g.addEventListener('mousedown', startDrag);
+            hp.h.circle.addEventListener('mousedown', startDrag);
+            hp.h.hit.addEventListener('mousedown', startDrag);
         });
     },
 
@@ -954,19 +982,40 @@ const FlowEdges = {
         var cr = canvas.getBoundingClientRect();
         var mx = e.clientX - cr.left, my = e.clientY - cr.top;
 
-        // Move the handle dot visually
-        var circle = d.circle || d.handle.querySelector('circle');
-        var label = d.text || d.handle.querySelector('text');
-        if (circle) { circle.setAttribute('cx', mx); circle.setAttribute('cy', my); }
-        if (label) { label.setAttribute('x', mx); label.setAttribute('y', my - 14); }
+        // Detect node under cursor (bounding-box hit with generous padding)
+        var nearest = FlowEdges._getNodeUnderCursor(e.clientX, e.clientY, d.edgeId, d.end);
 
-        // Draw live preview line from the anchored end to cursor
+        // If hovering a node, snap the handle to its nearest port. Otherwise follow cursor.
+        var handleX = mx, handleY = my;
+        var snappedSide = null;
+        if (nearest) {
+            var snap = FlowEdges._getNearestSide(nearest.nodeId, mx, my);
+            var sPos = FlowNodes.getPortPosition(nearest.nodeId, snap.side, 0, 1);
+            if (sPos) {
+                handleX = sPos.x; handleY = sPos.y;
+                snappedSide = snap.side;
+            }
+        }
+
+        // Move the handle dot, halo, and label visually
+        var circle = d.circle || d.handle.querySelector('.edge-handle-dot');
+        var halo   = d.halo   || d.handle.querySelector('.edge-handle-halo');
+        var label  = d.text   || d.handle.querySelector('.edge-handle-label');
+        if (circle) { circle.setAttribute('cx', handleX); circle.setAttribute('cy', handleY); }
+        if (halo)   { halo.setAttribute('cx', handleX);   halo.setAttribute('cy', handleY);   }
+        if (label)  { label.setAttribute('x', handleX);   label.setAttribute('y', handleY - 16); }
+
+        // Also move the invisible hit ring so it tracks the handle
+        var hit = d.handle && d.handle.querySelector('.edge-handle-hit');
+        if (hit) { hit.setAttribute('cx', handleX); hit.setAttribute('cy', handleY); }
+
+        // Draw live preview line from the anchored end to the handle position (snapped or cursor)
         var edge = FlowData.getEdge(d.edgeId);
         var svg = document.getElementById('edgeLayer');
         if (edge && svg) {
-            var anchorNodeId = d.end === 'from' ? edge.toNodeId : edge.fromNodeId;
-            var anchorSide = d.end === 'from' ? (edge.toSide || 'left') : (edge.fromSide || 'right');
-            var anchorPos = FlowNodes.getPortPosition(anchorNodeId, anchorSide, 0, 1);
+            var anchorNodeId = d.end === 'from' ? edge.toNodeId    : edge.fromNodeId;
+            var anchorSide   = d.end === 'from' ? (edge.toSide || 'left') : (edge.fromSide || 'right');
+            var anchorPos    = FlowNodes.getPortPosition(anchorNodeId, anchorSide, 0, 1);
 
             // Remove old preview line
             var oldPreview = svg.querySelector('.edge-drag-preview');
@@ -974,22 +1023,44 @@ const FlowEdges = {
 
             if (anchorPos) {
                 var preview = document.createElementNS('http://www.w3.org/2000/svg','path');
-                var dx = Math.abs(mx - anchorPos.x), dy = Math.abs(my - anchorPos.y);
+                var dx = Math.abs(handleX - anchorPos.x);
+                var dy = Math.abs(handleY - anchorPos.y);
                 var cpOff = Math.max(40, dx * 0.35);
-                // Simple bezier from anchor to cursor
-                var cpAx = anchorSide === 'right' ? anchorPos.x + cpOff : anchorSide === 'left' ? anchorPos.x - cpOff : anchorPos.x;
-                var cpAy = anchorSide === 'top' ? anchorPos.y - cpOff : anchorSide === 'bottom' ? anchorPos.y + cpOff : anchorPos.y;
-                var pathD = 'M ' + anchorPos.x + ' ' + anchorPos.y + ' Q ' + cpAx + ' ' + cpAy + ', ' + mx + ' ' + my;
-                preview.setAttribute('d', pathD);
+                // Bezier from anchor (tangent along anchor side) to snapped/cursor point
+                var cpAx = anchorSide === 'right' ? anchorPos.x + cpOff
+                         : anchorSide === 'left'  ? anchorPos.x - cpOff
+                         : anchorPos.x;
+                var cpAy = anchorSide === 'top'    ? anchorPos.y - cpOff
+                         : anchorSide === 'bottom' ? anchorPos.y + cpOff
+                         : anchorPos.y;
+
+                // If snapped to a target port, also give the preview a tangent at the target end
+                var cpBx = handleX, cpBy = handleY;
+                if (snappedSide) {
+                    var tOff = Math.max(40, dx * 0.35);
+                    cpBx = snappedSide === 'right' ? handleX + tOff
+                         : snappedSide === 'left'  ? handleX - tOff
+                         : handleX;
+                    cpBy = snappedSide === 'top'    ? handleY - tOff
+                         : snappedSide === 'bottom' ? handleY + tOff
+                         : handleY;
+                    var pathD = 'M ' + anchorPos.x + ' ' + anchorPos.y +
+                                ' C ' + cpAx + ' ' + cpAy + ', ' + cpBx + ' ' + cpBy +
+                                ', ' + handleX + ' ' + handleY;
+                    preview.setAttribute('d', pathD);
+                } else {
+                    // No snap — simple quadratic from anchor to cursor
+                    var pathQ = 'M ' + anchorPos.x + ' ' + anchorPos.y +
+                                ' Q ' + cpAx + ' ' + cpAy + ', ' + handleX + ' ' + handleY;
+                    preview.setAttribute('d', pathQ);
+                }
                 preview.classList.add('edge-drag-preview');
+                if (snappedSide) preview.classList.add('edge-drag-preview-snapped');
                 svg.appendChild(preview);
             }
         }
 
-        // Detect node under cursor using bounding box (not center distance)
-        var nearest = FlowEdges._getNodeUnderCursor(e.clientX, e.clientY, d.edgeId, d.end);
-
-        // Clear all node highlights
+        // Clear all node / port highlights from previous frame
         document.querySelectorAll('.flow-node').forEach(function(el) {
             el.classList.remove('edge-drop-target');
         });
@@ -997,34 +1068,79 @@ const FlowEdges = {
             ind.classList.remove('port-hover');
         });
 
-        if (nearest) {
+        if (nearest && snappedSide) {
             var nodeEl = document.getElementById('node-' + nearest.nodeId);
             if (nodeEl) nodeEl.classList.add('edge-drop-target');
 
-            var best = FlowEdges._getNearestSide(nearest.nodeId, mx, my);
-            // Count existing connections on this side to show slot number
-            var portKey = nearest.nodeId + '-' + best.side;
+            // Highlight the specific port indicator that will be chosen on drop
+            var targetInd = document.querySelector(
+                '.edge-port-indicator[data-node-id="' + nearest.nodeId + '"][data-side="' + snappedSide + '"]'
+            );
+            if (targetInd) targetInd.classList.add('port-hover');
+
+            // Slot number this edge would occupy
+            var portKey = nearest.nodeId + '-' + snappedSide;
             var count = (FlowEdges._lastPortCounts && FlowEdges._lastPortCounts[portKey]) || 0;
-            var slotNum = count + 1; // this edge would be added as next
+            var isSameNode = String(nearest.nodeId) === String(d.nodeId);
+            // If staying on the same node, this edge already counts toward the total
+            var slotNum = isSameNode ? Math.max(1, count) : count + 1;
 
             var targetNode = FlowData.getNode(nearest.nodeId);
-            var isNewNode = String(nearest.nodeId) !== String(d.nodeId);
             if (label) {
-                var nameStr = targetNode ? targetNode.name.substring(0, 10) : '';
-                label.textContent = isNewNode ? nameStr + ' #' + slotNum : best.side + ' #' + slotNum;
+                var nameStr = targetNode ? targetNode.name.substring(0, 12) : '';
+                label.textContent = isSameNode
+                    ? snappedSide + ' #' + slotNum
+                    : nameStr + ' · ' + snappedSide + ' #' + slotNum;
             }
             d._hoverNodeId = nearest.nodeId;
+            d._hoverSide   = snappedSide;
         } else {
             d._hoverNodeId = null;
-            if (label) label.textContent = '—';
+            d._hoverSide = null;
+            if (label) label.textContent = 'release on a node';
         }
+    },
+
+    /** Cancel handle drag on Escape */
+    _onHandleKey: function(e) {
+        if (e.key !== 'Escape') return;
+        var d = FlowEdges._handleDrag;
+        if (!d) return;
+        e.preventDefault();
+        // Cleanup without applying the drag
+        document.removeEventListener('mousemove', FlowEdges._onHandleMove);
+        document.removeEventListener('mouseup',   FlowEdges._onHandleUp);
+        document.removeEventListener('keydown',   FlowEdges._onHandleKey);
+
+        var svg = document.getElementById('edgeLayer');
+        if (svg) {
+            var p = svg.querySelector('.edge-drag-preview');
+            if (p) p.remove();
+        }
+        document.querySelectorAll('.flow-node').forEach(function(el) {
+            el.classList.remove('edge-drop-target');
+        });
+
+        var edgeId = d.edgeId;
+        FlowEdges._handleDrag = null;
+        FlowEdges.deselectEdge();
+        FlowEdges.render();
+        // Re-select so the user can retry
+        setTimeout(function() {
+            var e2 = FlowData.getEdge(edgeId);
+            if (e2) {
+                var ports = FlowNodes.getBestPorts(e2.fromNodeId, e2.toNodeId, e2);
+                if (ports) FlowEdges.selectEdge(edgeId, ports);
+            }
+        }, 50);
     },
 
     _onHandleUp: function(e) {
         var d = FlowEdges._handleDrag;
         if (!d) return;
         document.removeEventListener('mousemove', FlowEdges._onHandleMove);
-        document.removeEventListener('mouseup', FlowEdges._onHandleUp);
+        document.removeEventListener('mouseup',   FlowEdges._onHandleUp);
+        document.removeEventListener('keydown',   FlowEdges._onHandleKey);
 
         // Remove preview line
         var svg = document.getElementById('edgeLayer');
@@ -1043,21 +1159,44 @@ const FlowEdges = {
         var edge = FlowData.getEdge(d.edgeId);
         if (!edge) { FlowEdges._handleDrag = null; return; }
 
-        // Target node: only if cursor is actually over a node
-        var targetNodeId = d._hoverNodeId || d.nodeId;
         var otherEnd = d.end === 'from' ? edge.toNodeId : edge.fromNodeId;
 
-        // Don't allow connecting a node to itself
-        if (String(targetNodeId) === String(otherEnd)) {
-            targetNodeId = d.nodeId;
-        }
-
-        // If no node was hovered, keep original
+        // Only apply the drag if the cursor was actually over a node when released.
+        // Otherwise, bail out and restore original handle position.
         if (!d._hoverNodeId) {
-            targetNodeId = d.nodeId;
+            FlowEdges._handleDrag = null;
+            FlowEdges.deselectEdge();
+            FlowEdges.render();
+            // Re-select so the user can try again
+            setTimeout(function() {
+                var e2 = FlowData.getEdge(d.edgeId);
+                if (e2) {
+                    var ports = FlowNodes.getBestPorts(e2.fromNodeId, e2.toNodeId, e2);
+                    if (ports) FlowEdges.selectEdge(d.edgeId, ports);
+                }
+            }, 50);
+            return;
         }
 
-        var best = FlowEdges._getNearestSide(targetNodeId, mx, my);
+        var targetNodeId = d._hoverNodeId;
+
+        // Don't allow connecting a node to its edge partner (would make a self-loop edge invalid)
+        if (String(targetNodeId) === String(otherEnd)) {
+            FlowEdges._handleDrag = null;
+            FlowEdges.deselectEdge();
+            FlowEdges.render();
+            setTimeout(function() {
+                var e2 = FlowData.getEdge(d.edgeId);
+                if (e2) {
+                    var ports = FlowNodes.getBestPorts(e2.fromNodeId, e2.toNodeId, e2);
+                    if (ports) FlowEdges.selectEdge(d.edgeId, ports);
+                }
+            }, 50);
+            return;
+        }
+
+        // Prefer the side captured during move (snapped). Fall back to nearest-side from cursor.
+        var chosenSide = d._hoverSide || FlowEdges._getNearestSide(targetNodeId, mx, my).side;
         var isReconnect = String(targetNodeId) !== String(d.nodeId);
 
         // Initialize port sides
@@ -1072,18 +1211,18 @@ const FlowEdges = {
         if (isReconnect) {
             if (d.end === 'from') {
                 edge.fromNodeId = targetNodeId;
-                edge.fromSide = best.side;
+                edge.fromSide = chosenSide;
             } else {
                 edge.toNodeId = targetNodeId;
-                edge.toSide = best.side;
+                edge.toSide = chosenSide;
             }
             // First in line at new node
             if (!edge.portOrder) edge.portOrder = {};
-            var newPortKey = targetNodeId + '-' + best.side + '-' + d.end;
+            var newPortKey = targetNodeId + '-' + chosenSide + '-' + d.end;
             edge.portOrder[newPortKey] = -1;
         } else {
-            if (d.end === 'from') edge.fromSide = best.side;
-            else edge.toSide = best.side;
+            if (d.end === 'from') edge.fromSide = chosenSide;
+            else edge.toSide = chosenSide;
         }
 
         FlowData.save();
@@ -1108,15 +1247,22 @@ const FlowEdges = {
         var otherEnd = end === 'from' ? edge.toNodeId : edge.fromNodeId;
 
         var hit = null;
+        var hitArea = Infinity;  // prefer tighter hits when overlapping
         FlowData.nodes.forEach(function(node) {
             if (node.id === otherEnd) return; // can't connect to self
+            // Skip hidden / invisible nodes
+            if (typeof DataModel !== 'undefined' && !DataModel.isActivityVisible(node.id)) return;
             var el = document.getElementById('node-' + node.id);
             if (!el) return;
             var r = el.getBoundingClientRect();
-            // Expand hit area by 12px for easier targeting
-            if (clientX >= r.left - 12 && clientX <= r.right + 12 &&
-                clientY >= r.top - 12 && clientY <= r.bottom + 12) {
-                hit = { nodeId: node.id };
+            // Expand hit area by 18px for easier targeting (slightly more forgiving than before)
+            if (clientX >= r.left - 18 && clientX <= r.right + 18 &&
+                clientY >= r.top - 18  && clientY <= r.bottom + 18) {
+                var area = r.width * r.height;
+                if (area < hitArea) {
+                    hitArea = area;
+                    hit = { nodeId: node.id };
+                }
             }
         });
         return hit;

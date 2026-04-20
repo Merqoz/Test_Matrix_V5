@@ -285,8 +285,12 @@ body {
 }
 
 .table-scroll {
-    overflow: auto;
-    max-height: calc(100vh - 180px);
+    overflow-x: scroll;           /* always show horizontal scrollbar */
+    overflow-y: auto;             /* vertical only when needed */
+    /* Fit within the viewport minus body padding (20px top + 20px bottom) so that
+       once the outer page is scrolled to the bottom, the table's horizontal
+       scrollbar (at its bottom edge) sits just inside the viewport. */
+    max-height: calc(100vh - 40px);
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 212, 255, 0.3) rgba(20, 20, 35, 0.5);
 }
@@ -295,6 +299,37 @@ body {
 .table-scroll::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.3); border-radius: 6px; border: 2px solid rgba(20, 20, 35, 0.5); }
 .table-scroll::-webkit-scrollbar-thumb:hover { background: rgba(0, 212, 255, 0.5); }
 .table-scroll::-webkit-scrollbar-corner { background: rgba(20, 20, 35, 0.5); }
+
+/* Safari / older WebKit: force the scrollbar to render even when idle */
+.table-scroll::-webkit-scrollbar:horizontal { height: 12px; }
+.table-scroll::-webkit-scrollbar-thumb:horizontal { min-width: 40px; }
+
+/* Fixed horizontal scrollbar indicator at bottom right */
+.scroll-indicator {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    height: 12px;
+    background: rgba(20, 20, 35, 0.8);
+    border-top: 1px solid rgba(0, 212, 255, 0.2);
+    z-index: 100;
+    pointer-events: none;
+}
+
+.scroll-indicator-thumb {
+    height: 100%;
+    background: rgba(0, 212, 255, 0.4);
+    border-radius: 0;
+    transition: background-color 0.2s;
+}
+
+.scroll-indicator-thumb:hover {
+    background: rgba(0, 212, 255, 0.6);
+}
+
+.scroll-indicator.visible {
+    pointer-events: auto;
+}
 
 /* When in freeze mode, ensure proper scrollbar positioning */
 .table-scroll.freeze-mode {
@@ -336,16 +371,70 @@ body {
     text-transform: uppercase;
     letter-spacing: 0.5px;
     white-space: nowrap;
-    position: sticky;
     z-index: 10;
+    /* position: sticky applied conditionally below (when row-freeze is ON) —
+       this keeps column-freeze (horizontal) independent from row-freeze (vertical). */
 }
+/* === ROW FREEZE — only active when .freeze-rows-mode is on === */
+.freeze-rows-mode .matrix-table thead th { position: sticky !important; }
 /* Main header row sticks at top */
-.matrix-table thead tr:first-child th { top: 0; z-index: 10; }
-/* Filter row sticks below the main header */
-.matrix-table thead tr.filter-header-row th { top: 36px; z-index: 10; background: #151530; }
-/* Frozen header cells always on top of everything */
-.freeze-mode thead tr:first-child th.col-freeze { z-index: 35; }
-.freeze-mode thead tr.filter-header-row th.col-freeze { z-index: 34; }
+.freeze-rows-mode .matrix-table thead tr:first-child th {
+    top: 0;
+    z-index: 11;
+    background: linear-gradient(180deg, #1a1a3a 0%, #151530 100%) !important;
+}
+/* Filter row sticks below the main header (override the transparent default) */
+.freeze-rows-mode .matrix-table thead tr.filter-header-row th {
+    top: 36px;
+    z-index: 11;
+    background: #151530 !important;
+}
+/* Frozen header cells always on top of everything (when BOTH freezes are on) */
+.freeze-mode.freeze-rows-mode thead tr:first-child th.col-freeze { z-index: 35; }
+.freeze-mode.freeze-rows-mode thead tr.filter-header-row th.col-freeze { z-index: 34; }
+
+/* Activity Search Row — shows the Doc Nr / Test Activity description input */
+.freeze-rows-mode .matrix-table thead tr.activity-search-row th {
+    top: 72px;
+    z-index: 11;
+    background: #1a1a35 !important;
+}
+.matrix-table thead tr.activity-search-row th { background: #1a1a35; border-bottom: 2px solid #333; padding: 8px; }
+.freeze-mode.freeze-rows-mode thead tr.activity-search-row th.col-freeze { z-index: 34; background: #1a1a35 !important; }
+
+.col-search-combined {
+    padding: 6px 8px !important;
+    text-align: left;
+}
+
+.activity-search-input {
+    width: 100%;
+    background: rgba(100, 150, 255, 0.1);
+    border: 1px solid rgba(100, 150, 255, 0.3);
+    border-radius: 4px;
+    color: #aaa;
+    font-size: 12px;
+    padding: 6px 10px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    transition: all 0.2s;
+}
+
+.activity-search-input::placeholder {
+    color: #666;
+}
+
+.activity-search-input:focus {
+    outline: none;
+    background: rgba(100, 150, 255, 0.15);
+    border-color: rgba(100, 150, 255, 0.6);
+    color: #ddd;
+    box-shadow: 0 0 10px rgba(100, 150, 255, 0.2);
+}
+
+.search-cell {
+    padding: 4px 2px !important;
+    background: #1a1a35;
+}
 
 /* === GROUP BY ACTIVITY === */
 .action-btn.group-btn {
@@ -592,6 +681,35 @@ th.type-group-first {
     outline: none;
     border-bottom-color: #00d4ff;
     text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+}
+
+.test-subtitle {
+    font-size: 11px;
+    color: #999;
+    margin-bottom: 4px;
+}
+
+.test-subtitle input {
+    background: rgba(200, 200, 200, 0.15);
+    border: 1px solid rgba(200, 200, 200, 0.3);
+    border-radius: 3px;
+    color: #aaa;
+    font-size: 11px;
+    width: 100%;
+    padding: 3px 6px;
+    transition: all 0.2s;
+    font-style: italic;
+}
+
+.test-subtitle input::placeholder {
+    color: #666;
+}
+
+.test-subtitle input:focus {
+    outline: none;
+    background: rgba(200, 200, 200, 0.25);
+    border-color: rgba(200, 200, 200, 0.5);
+    color: #ccc;
 }
 
 .test-action-btn {

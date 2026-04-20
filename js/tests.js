@@ -17,6 +17,7 @@ const TestManager = {
             id: DataModel.nextTestId++,
             uid: DataModel.generateUid(),
             name: o.name || `Test ${DataModel.testColumns.length + 1}`,
+            subtitle: o.subtitle || '',
             type: o.type || 'FAT',
             location: o.location || DataModel.getLocationNames()[0] || '',
             workpack: o.workpack || '',
@@ -64,6 +65,7 @@ const TestManager = {
 
         // Clear/reset fields
         document.getElementById('addTestName').value = '';
+        document.getElementById('addTestSubtitle').value = '';
         document.getElementById('addTestStart').value = '';
         document.getElementById('addTestEnd').value = '';
 
@@ -97,6 +99,7 @@ const TestManager = {
      */
     confirmAdd() {
         const name = (document.getElementById('addTestName').value || '').trim();
+        const subtitle = (document.getElementById('addTestSubtitle').value || '').trim();
         const type = document.getElementById('addTestType').value;
         const location = document.getElementById('addTestLocation').value;
         const workpack = document.getElementById('addTestWorkpack').value;
@@ -110,7 +113,7 @@ const TestManager = {
             return;
         }
 
-        this.add({ name, type, location, workpack, startDate, endDate });
+        this.add({ name, subtitle, type, location, workpack, startDate, endDate });
         this.closeAddModal();
     },
 
@@ -188,6 +191,17 @@ const TestManager = {
         const test = DataModel.getTest(testId);
         if (test && test.name !== value) {
             test.name = value;
+            if (typeof App !== 'undefined') App.persistMatrix();
+        }
+    },
+
+    /**
+     * Update test subtitle — only persist if changed
+     */
+    updateSubtitle(testId, value) {
+        const test = DataModel.getTest(testId);
+        if (test && test.subtitle !== value) {
+            test.subtitle = value;
             if (typeof App !== 'undefined') App.persistMatrix();
         }
     },
@@ -393,6 +407,7 @@ const TestManager = {
             parentId: parentId,
             uid: DataModel.generateUid(),
             name: `${parent.name} #${subNum}`,
+            subtitle: '',
             type: parent.type,
             location: parent.location,
             workpack: parent.workpack,

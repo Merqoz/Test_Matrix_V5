@@ -221,6 +221,32 @@ const Renderer = {
 
         filterTr.innerHTML += `<th class="add-test-col filter-cell"></th>`;
         thead.appendChild(filterTr);
+
+        // Activity search row — search by name and Doc Nr
+        const activitySearchTr = document.createElement('tr');
+        activitySearchTr.className = 'activity-search-row';
+        activitySearchTr.id = 'activitySearchRow';
+        
+        const freezeClassA = DataModel.freezeEnabled ? 'col-freeze' : '';
+        activitySearchTr.innerHTML = `
+            <th class="col-delete search-cell ${freezeClassA} col-freeze-0"></th>
+            <th colspan="7" class="col-search-combined ${freezeClassA}">
+                <input class="activity-search-input" 
+                       id="activitySearchInput"
+                       type="text" 
+                       placeholder="🔍 Search by Activity Name or Doc Nr..." 
+                       oninput="FilterManager.onActivitySearch(this)">
+            </th>
+        `;
+
+        // Add empty cells for test columns and add button
+        const searchVisible = DataModel.getVisibleColumns();
+        searchVisible.forEach(() => {
+            activitySearchTr.innerHTML += '<th class="test-column search-cell"></th>';
+        });
+        activitySearchTr.innerHTML += '<th class="add-test-col search-cell"></th>';
+
+        thead.appendChild(activitySearchTr);
     },
 
     /**
@@ -274,7 +300,10 @@ const Renderer = {
                     </div>
                 </div>
                 <div class="test-name sub-activity-name" title="${uid} (sub of ${test.parentId})">
-                    <input type="text" value="${test.name}" onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'name', this.value)">
+                    <input type="text" value="${test.name}" onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'name', this.value)" onpaste="return true;">
+                </div>
+                <div class="test-subtitle">
+                    <input type="text" value="${test.subtitle || ''}" onchange="TestManager.updateSubField(${test.parentId}, ${test.id}, 'subtitle', this.value)" placeholder="Doc Nr." onpaste="return true;">
                 </div>
                 <div class="test-info">
                     <label>Type</label>
@@ -342,7 +371,10 @@ const Renderer = {
                 </div>
             </div>
             <div class="test-name" title="${uid}">
-                <input type="text" value="${test.name}" onchange="TestManager.updateName(${test.id}, this.value)">
+                <input type="text" value="${test.name}" onchange="TestManager.updateName(${test.id}, this.value)" onpaste="return true;">
+            </div>
+            <div class="test-subtitle">
+                <input type="text" value="${test.subtitle || ''}" onchange="TestManager.updateSubtitle(${test.id}, this.value)" placeholder="Doc Nr." onpaste="return true;">
             </div>
             <div class="test-info">
                 <label>Type</label>

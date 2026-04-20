@@ -51,11 +51,11 @@ const FreezeManager = {
 
         if (DataModel.freezeEnabled) {
             btn.classList.add('active');
-            label.textContent = 'Freeze On';
+            label.textContent = 'Freeze Cols On';
             tableScroll.classList.add('freeze-mode');
         } else {
             btn.classList.remove('active');
-            label.textContent = 'Freeze Off';
+            label.textContent = 'Freeze Cols Off';
             tableScroll.classList.remove('freeze-mode');
         }
     },

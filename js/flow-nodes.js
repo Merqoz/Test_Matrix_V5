@@ -159,6 +159,7 @@ const FlowNodes = {
         if (node.location)  metaParts.push(`<span class="node-location-tag" style="color:${locColor?.color || '#778'}">${node.location}</span>`);
         if (node.workpack)  metaParts.push(`📦 ${node.workpack}`);
         if (node.startDate) metaParts.push(`📅 ${node.startDate}`);
+        if (node.subtitle)  metaParts.push(`<span class="node-docnr-tag" title="Doc Nr.">📄 ${this.escapeHtml(node.subtitle)}</span>`);
 
         // Description indicator
         const desc = FlowData.descriptions[node.id];

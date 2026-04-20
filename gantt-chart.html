@@ -21,6 +21,14 @@
             </div>
             <div class="gc-header-controls">
                 <span style="font-size:10px;color:#5c6370;letter-spacing:0.5px;">Right-click rows/bars · Drag bars · Drag map nodes</span>
+                <button class="gc-btn gc-lock-btn" id="gcLockBtn" onclick="GCApp.toggleLock()" title="Lock / unlock bar positions">
+                    <svg id="gcLockIcon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <!-- Unlocked padlock (default) -->
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                    </svg>
+                    <span id="gcLockLabel">Unlocked</span>
+                </button>
                 <button class="gc-btn" id="gcTlToggleBtn" onclick="GCApp.toggleGcTimeline()" title="Toggle milestone timeline">
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Hide Milestones
                 </button>
@@ -34,6 +42,20 @@
             </div>
         </div>
 
+        <!-- View-mode sub-tabs -->
+        <div class="gc-view-tabs" id="gcViewTabs">
+            <button class="gc-view-tab active" id="gcViewTabGantt" onclick="GCApp.setViewMode('gantt')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="6" height="4" rx="1"/><rect x="7" y="10" width="10" height="4" rx="1"/><rect x="13" y="16" width="8" height="4" rx="1"/></svg>
+                Gantt Chart
+            </button>
+            <button class="gc-view-tab" id="gcViewTabSummary" onclick="GCApp.setViewMode('summary')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+                Activity Summary
+            </button>
+        </div>
+
+        <!-- View: Gantt Chart -->
+        <div class="gc-view gc-view-gantt" id="gcViewGantt">
         <!-- Gantt Chart -->
         <div class="gc-section">
             <div class="gc-section-header">
@@ -131,7 +153,31 @@
                 </div>
             </div>
         </div>
-    </div>
+        </div><!-- /gc-view-gantt -->
+
+        <!-- View: Activity Summary -->
+        <div class="gc-view gc-view-summary" id="gcViewSummary" style="display:none;">
+            <div class="gc-section">
+                <div class="gc-section-header">
+                    <span class="gc-section-title">Test Activity Summary</span>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <button class="gc-btn" id="gcSumExpandBtn" onclick="GCApp.toggleAllSummarySubs()" title="Expand or collapse all sub-activities">
+                            <svg id="gcSumExpandIcon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                            <span id="gcSumExpandLabel">Expand All</span>
+                        </button>
+                        <div class="gc-summary-hint" id="gcSummaryHint"></div>
+                    </div>
+                </div>
+                <!-- Same filter chip bar as the Gantt view (Activity type + WP) -->
+                <div class="gc-filter-bar" id="gcFilterBarSummary"></div>
+                <div class="gc-summary-container" id="gcSummaryContainer">
+                    <!-- Built by GCApp._renderSummary() -->
+                </div>
+            </div>
+        </div><!-- /gc-view-summary -->
+    </div><!-- /gc-container -->
 
     <div class="gc-tooltip" id="gcTooltip"><div class="gc-tooltip-title" id="gcTooltipTitle"></div><div id="gcTooltipContent"></div></div>
     <div class="gc-ctx-menu" id="gcCtxMenu"></div>

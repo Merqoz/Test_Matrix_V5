@@ -355,7 +355,8 @@ const StorageManager = {
                 deletedEquipment: []    // [{...row, section, deletedAt}]
             },
             prefs: {
-                freezeEnabled: false
+                freezeEnabled: false,
+                freezeRowsEnabled: false
             }
         };
     },

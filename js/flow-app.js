@@ -105,6 +105,7 @@ const FlowApp = {
                 id: test.id,
                 uid: test.uid || '',
                 name: test.name,
+                subtitle: test.subtitle || '',   // Doc Nr. from index.html — shown on flow node
                 type: test.type,
                 location: test.location || '',
                 workpack: test.workpack || '',
@@ -469,6 +470,7 @@ const FlowApp = {
             id: test.id,
             uid: test.uid || '',
             name: test.name,
+            subtitle: test.subtitle || '',   // Doc Nr.
             type: test.type,
             location: test.location || '',
             workpack: test.workpack || '',
