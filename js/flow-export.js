@@ -540,11 +540,11 @@ const FlowExport = {
             pdf.setLineWidth(0.3);
             pdf.line(m, 22, pageW - m, 22);
 
-            var colWidths = [100, 30, 80, 40, 55, 55];
+            var colWidths = [100, 30, 80, 40, 55, 55, 30];
             var tableX = m;
             var rowH = 9;
             var headerY = 28;
-            var headers = ['Activity', 'Type', 'Location', 'Work Pack', 'Start', 'End'];
+            var headers = ['Activity', 'Type', 'Location', 'Work Pack', 'Start', 'End', 'Days'];
             var totalW = colWidths.reduce(function(a,b){return a+b;},0);
 
             drawTableHeader(tableX, headerY, colWidths, headers, rowH);
@@ -578,6 +578,16 @@ const FlowExport = {
             }
 
             var rowCounter = 0;
+            var totalDays = 0;
+            var totalDaysMain = 0;  // sum only of top-level activities (so subs don't double-count)
+
+            // Helper: return number of days between two ISO date strings, or null if unknown
+            function daysBetween(s, e) {
+                if (!s || !e) return null;
+                var a = new Date(s), b = new Date(e);
+                if (isNaN(a) || isNaN(b)) return null;
+                return Math.max(0, Math.round((b - a) / 86400000));
+            }
 
             for (var ri = 0; ri < flatActivities.length; ri++) {
                 var entry = flatActivities[ri];
@@ -615,7 +625,15 @@ const FlowExport = {
                 var actName = pdfSafe(n.name || '');
                 if (entry.isSub) actName = '       ' + actName;
 
-                var cells = [actName, n.type || '', pdfSafe(n.location || ''), pdfSafe(n.workpack || ''), n.startDate || '', n.endDate || ''];
+                // Days for this row
+                var dayCount = daysBetween(n.startDate, n.endDate);
+                var daysStr  = (dayCount == null) ? '\u2014' : (dayCount + 'd');
+                if (dayCount != null) {
+                    totalDays += dayCount;
+                    if (!entry.isSub) totalDaysMain += dayCount;
+                }
+
+                var cells = [actName, n.type || '', pdfSafe(n.location || ''), pdfSafe(n.workpack || ''), n.startDate || '', n.endDate || '', daysStr];
                 pdf.setFont('helvetica', entry.isSub ? 'italic' : 'normal');
                 pdf.setFontSize(entry.isSub ? 8 : 9);
                 var rx = tableX;
@@ -645,6 +663,10 @@ const FlowExport = {
             pdf.setFont('helvetica', 'italic');
             var summaryText = visibleNodes.length + ' activities';
             if (subCount > 0) summaryText += ' + ' + subCount + ' sub-activities';
+            summaryText += ' \u00B7 ' + totalDaysMain + ' total days';
+            if (subCount > 0 && totalDays !== totalDaysMain) {
+                summaryText += ' (' + totalDays + ' incl. sub-activities)';
+            }
             pdf.text(summaryText, tableX, curY + 8);
 
             // ══════════════════════════════════
@@ -877,11 +899,19 @@ const FlowExport = {
                     options: { bold: true, color: P.tblHdrTxt || 'FFFFFF', fill: { color: P.tblHdrBg }, fontSize: 11, fontFace: 'Calibri' }
                 };
             }
-            var headerRow = [hdr('Activity'), hdr('Type'), hdr('Location'), hdr('Work Pack'), hdr('Start'), hdr('End')];
+            var headerRow = [hdr('Activity'), hdr('Type'), hdr('Location'), hdr('Work Pack'), hdr('Start'), hdr('End'), hdr('Days')];
 
             // Default cell text color for theme
             var cellTxt = isLight ? '1e293b' : 'c8cdd7';
             var subTxt  = isLight ? '6d28d9' : 'a78bfa';
+
+            // Helper: days between two date strings
+            function pptxDaysBetween(s, e) {
+                if (!s || !e) return null;
+                var a = new Date(s), b = new Date(e);
+                if (isNaN(a) || isNaN(b)) return null;
+                return Math.max(0, Math.round((b - a) / 86400000));
+            }
 
             // Build flat list with sub-activities
             var pptxFlat = [];
@@ -897,6 +927,9 @@ const FlowExport = {
                 }
             });
 
+            var pptxTotalDays = 0;
+            var pptxTotalDaysMain = 0;
+
             var dataRows = pptxFlat.map(function(entry, i) {
                 var n = entry.data;
                 var bg = i % 2 === 0 ? P.rowAlt : P.rowNorm;
@@ -908,14 +941,18 @@ const FlowExport = {
                     if (extra) { for (var k in extra) opts[k] = extra[k]; }
                     return { text: txt || '', options: opts };
                 }
-                var actName = entry.isSub ? '  └ ' + (n.name || '') : (n.name || '');
+                var actName = entry.isSub ? '  \u2514 ' + (n.name || '') : (n.name || '');
+                var dc = pptxDaysBetween(n.startDate, n.endDate);
+                var daysStr = (dc == null) ? '\u2014' : (dc + 'd');
+                if (dc != null) { pptxTotalDays += dc; if (!entry.isSub) pptxTotalDaysMain += dc; }
                 return [
                     cell(actName),
                     cell(n.type, { color: typeColor, bold: true }),
                     cell(n.location),
                     cell(n.workpack),
                     cell(n.startDate),
-                    cell(n.endDate)
+                    cell(n.endDate),
+                    cell(daysStr, { align: 'center' })
                 ];
             });
 
@@ -923,18 +960,22 @@ const FlowExport = {
 
             s3.addTable([headerRow].concat(dataRows), {
                 x: 0.4, y: 1.1, w: 12.5,
-                colW: [3.5, 1.2, 2.8, 1.5, 1.75, 1.75],
+                colW: [3.3, 1.1, 2.6, 1.4, 1.6, 1.6, 0.9],
                 border: { pt: 0.5, color: tblBorderClr },
                 rowH: 0.35, autoPage: true, autoPageRepeatHeader: true
             });
 
             var pptxSubCount = pptxFlat.filter(function(e){return e.isSub;}).length;
-            if (pptxSubCount > 0) {
-                s3.addText(visibleNodes.length + ' activities + ' + pptxSubCount + ' sub-activities', {
-                    x: 0.5, y: 6.8, w: 8, h: 0.4,
-                    fontSize: 10, fontFace: 'Calibri', color: '999999', italic: true
-                });
+            var pptxFooter = visibleNodes.length + ' activities';
+            if (pptxSubCount > 0) pptxFooter += ' + ' + pptxSubCount + ' sub-activities';
+            pptxFooter += ' \u00B7 ' + pptxTotalDaysMain + ' total days';
+            if (pptxSubCount > 0 && pptxTotalDays !== pptxTotalDaysMain) {
+                pptxFooter += ' (' + pptxTotalDays + ' incl. sub-activities)';
             }
+            s3.addText(pptxFooter, {
+                x: 0.5, y: 6.8, w: 12, h: 0.4,
+                fontSize: 10, fontFace: 'Calibri', color: '999999', italic: true
+            });
 
             // -- Slide 4: Connections & Transfers (if any) -----
             // Only include edges whose both endpoints are visible on the flow diagram
