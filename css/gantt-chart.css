@@ -638,14 +638,14 @@ body.gc-page::before {
         52px                    /* Type */
         minmax(90px, 0.9fr)    /* Location */
         54px                    /* Work Pack */
-        60px                    /* Start */
-        60px                    /* End */
-        44px                    /* Duration */
+        110px                   /* Start (native date input needs room) */
+        110px                   /* End   (native date input needs room) */
+        56px                    /* Duration */
         minmax(360px, 3fr);    /* Mini-gantt bar — more room for content */
     align-items: center;
     gap: 6px;
     padding: 4px 10px;
-    min-width: 920px;
+    min-width: 1020px;
 }
 
 .gc-sum-header {
@@ -758,7 +758,46 @@ body.gc-page::before {
     font-family: 'JetBrains Mono', monospace;
     font-size: 10px;
 }
-.gc-sum-col-dur { text-align: right; }
+.gc-sum-col-dur { text-align: center; }
+.gc-sum-col-date { text-align: center; }
+
+/* Editable date input — blends with the cell, shows accent on hover/focus */
+.gc-sum-date-input {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    font-family: inherit;
+    font-size: 10px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+    text-align: center;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+    color-scheme: dark;   /* native picker icon in dark themes */
+}
+.gc-sum-date-input:hover {
+    background: rgba(0,217,255,0.08);
+    border-color: rgba(0,217,255,0.25);
+    color: #e2e8f0;
+}
+.gc-sum-date-input:focus {
+    background: rgba(0,217,255,0.12);
+    border-color: var(--gc-accent-cyan);
+    color: #fff;
+}
+.gc-sum-date-input::-webkit-calendar-picker-indicator {
+    filter: invert(0.6);
+    opacity: 0.6;
+    cursor: pointer;
+}
+.gc-sum-date-input:hover::-webkit-calendar-picker-indicator { opacity: 1; }
+
+body.light-theme .gc-sum-date-input { color-scheme: light; }
+body.light-theme .gc-sum-date-input:hover { background: rgba(37,99,235,0.06); border-color: rgba(37,99,235,0.25); color: #0f172a; }
+body.light-theme .gc-sum-date-input:focus { background: rgba(37,99,235,0.1); border-color: #2563eb; color: #0f172a; }
+body.light-theme .gc-sum-date-input::-webkit-calendar-picker-indicator { filter: none; }
 
 /* Mini-gantt track on the right */
 .gc-sum-col-bar { min-width: 0; }

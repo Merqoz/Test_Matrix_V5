@@ -1317,7 +1317,11 @@ var GCApp = {
         DataModel.sections.forEach(function(sec){sec.rows.forEach(function(row){if(row.workpack)usedWPs[row.workpack]=true;});});
 
         var h='<span class="gc-filter-label">Activity:</span>';
-        Object.keys(usedTypes).sort().forEach(function(type){
+        // Canonical order matches lane order elsewhere in the app: FAT → EFAT → FIT → M-SIT → SIT → SRT
+        var typeOrder=['FAT','EFAT','FIT','M-SIT','SIT','SRT'];
+        var orderedTypes=typeOrder.filter(function(t){return usedTypes[t];})
+            .concat(Object.keys(usedTypes).filter(function(t){return typeOrder.indexOf(t)===-1;}).sort());
+        orderedTypes.forEach(function(type){
             var c=typeColors[type]||'#888',active=!!self._activeTypes[type],locked=!!self._lockedTypes[type];
             h+='<button class="gc-chip'+(active?' active':'')+'" onclick="GCApp.toggleFilter(\'actType\',\''+self._esc(type)+'\')" oncontextmenu="event.preventDefault();GCApp._showFilterCtx(event,\'actType\',\''+self._esc(type)+'\')"><span class="gc-chip-dot" style="background:'+c+'"></span>'+self._esc(type)+(locked?' \uD83D\uDD12':'')+'</button>';
         });
@@ -2143,6 +2147,10 @@ var GCApp = {
                 ? '<span class="gc-sum-subcount">+'+t.subActivities.length+'</span>'
                 : '';
 
+            // ISO date values for the <input type="date"> controls
+            var startIso = (t.startDate && !isNaN(new Date(t.startDate))) ? t.startDate : '';
+            var endIso   = (t.endDate   && !isNaN(new Date(t.endDate)))   ? t.endDate   : '';
+
             return '<div class="'+rowClass+'">'
                 + '<div class="gc-sum-col-activity">'
                     + toggleHtml
@@ -2154,8 +2162,16 @@ var GCApp = {
                 + '<div class="gc-sum-col-type"><span class="gc-sum-type" style="background:'+color+'22;color:'+color+';border:1px solid '+color+'55;">'+esc(t.type||'')+'</span></div>'
                 + '<div class="gc-sum-col-loc" title="'+esc(t.location||'')+'">'+esc(t.location||'—')+'</div>'
                 + '<div class="gc-sum-col-wp">'+esc(t.workpack||'—')+'</div>'
-                + '<div class="gc-sum-col-date">'+fmt(t.startDate)+'</div>'
-                + '<div class="gc-sum-col-date">'+fmt(t.endDate)+'</div>'
+                + '<div class="gc-sum-col-date">'
+                    + '<input type="date" class="gc-sum-date-input" value="'+startIso+'" '
+                    +    'onchange="GCApp.updateActivityDate('+t.id+',\'start\',this.value)" '
+                    +    'title="Start date — changes also apply to the matrix (index.html)">'
+                + '</div>'
+                + '<div class="gc-sum-col-date">'
+                    + '<input type="date" class="gc-sum-date-input" value="'+endIso+'" '
+                    +    'onchange="GCApp.updateActivityDate('+t.id+',\'end\',this.value)" '
+                    +    'title="End date — changes also apply to the matrix (index.html)">'
+                + '</div>'
                 + '<div class="gc-sum-col-dur">'+duration(t.startDate,t.endDate)+'</div>'
                 + '<div class="gc-sum-col-bar"><div class="gc-sum-track">'+todayLine+barHtml+'</div></div>'
                 + '</div>';
@@ -2205,6 +2221,43 @@ var GCApp = {
         DataModel.toggleSubExpanded(parentId);
         try { StorageManager.save({ prefs: { expandedSubActivities: DataModel.expandedSubActivities } }); } catch(e){}
         this._renderSummary();
+    },
+
+    /** Edit a test activity's start or end date from the Activity Summary view.
+     *  Reuses the same _syncTestData path the Gantt bar drag uses, so the
+     *  change is persisted to DataModel.testColumns and reflected in index.html
+     *  (via StorageManager / App.persistMatrix). Works for both main tests
+     *  and sub-activities (DataModel.getTest walks both). */
+    updateActivityDate:function(testId, field, value){
+        var test = DataModel.getTest(testId);
+        if(!test) return;
+
+        // Validate: don't allow an order flip (start > end).
+        // If the new value would invert the range, we just ignore the change
+        // and re-render so the input snaps back.
+        if(value){
+            if(field === 'start' && test.endDate && new Date(value) > new Date(test.endDate)){
+                this._renderSummary();
+                return;
+            }
+            if(field === 'end' && test.startDate && new Date(value) < new Date(test.startDate)){
+                this._renderSummary();
+                return;
+            }
+        }
+
+        // Reuse the existing sync path — same one used when dragging a Gantt bar.
+        // Pass undefined for args we don't want to touch so _syncTestData skips them.
+        if(field === 'start'){
+            this._syncTestData(testId, value || '', undefined, undefined);
+        } else if(field === 'end'){
+            this._syncTestData(testId, undefined, value || '', undefined);
+        }
+
+        // Recompute date-axis range & refresh both views (range may have grown)
+        this._calcRange();
+        if(this._viewMode === 'summary') this._renderSummary();
+        this.render();
     },
 
     /** Expand or collapse every parent with sub-activities, in one click.
