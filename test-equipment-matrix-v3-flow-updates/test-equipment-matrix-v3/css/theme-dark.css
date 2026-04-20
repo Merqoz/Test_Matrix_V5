@@ -1,0 +1,8 @@
+/* ========================================
+   THEME-DARK.CSS — Default Dark Theme
+   No class needed — dark is the baseline.
+   ======================================== */
+
+body:not(.light-theme) {
+    color-scheme: dark;
+}

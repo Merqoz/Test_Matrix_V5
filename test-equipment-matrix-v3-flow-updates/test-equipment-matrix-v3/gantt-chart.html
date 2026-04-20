@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gantt Chart — Test Equipment Matrix</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="css/nav.css">
+    <link rel="stylesheet" href="css/gantt-chart.css">
+    <link rel="stylesheet" href="css/theme-dark.css">
+    <link rel="stylesheet" href="css/theme-light.css">
+</head>
+<body class="gc-page">
+    <div class="gc-container">
+        <nav class="nav-tabs" id="navTabs"></nav>
+        <div class="gc-header">
+            <div class="gc-header-left">
+                <div class="gc-logo-icon">◈</div>
+                <div class="gc-title">Equipment <span>Logistics</span> Tracker</div>
+            </div>
+            <div class="gc-header-controls">
+                <span style="font-size:10px;color:#5c6370;letter-spacing:0.5px;">Right-click rows/bars · Drag bars · Drag map nodes</span>
+                <button class="gc-btn gc-lock-btn" id="gcLockBtn" onclick="GCApp.toggleLock()" title="Lock / unlock bar positions">
+                    <svg id="gcLockIcon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <!-- Unlocked padlock (default) -->
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                    </svg>
+                    <span id="gcLockLabel">Unlocked</span>
+                </button>
+                <button class="gc-btn" id="gcTlToggleBtn" onclick="GCApp.toggleGcTimeline()" title="Toggle milestone timeline">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Hide Milestones
+                </button>
+                <button class="gc-btn" onclick="GCApp.openWpPanel()" title="Choose which WP rows to show">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> WP Filter
+                </button>
+                <button class="gc-btn" onclick="GCApp._loadMatrix();GCApp._buildEquipList();GCApp._calcRange();GCApp.render()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- View-mode sub-tabs -->
+        <div class="gc-view-tabs" id="gcViewTabs">
+            <button class="gc-view-tab active" id="gcViewTabGantt" onclick="GCApp.setViewMode('gantt')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="6" height="4" rx="1"/><rect x="7" y="10" width="10" height="4" rx="1"/><rect x="13" y="16" width="8" height="4" rx="1"/></svg>
+                Gantt Chart
+            </button>
+            <button class="gc-view-tab" id="gcViewTabSummary" onclick="GCApp.setViewMode('summary')">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+                Activity Summary
+            </button>
+        </div>
+
+        <!-- View: Gantt Chart -->
+        <div class="gc-view gc-view-gantt" id="gcViewGantt">
+        <!-- Gantt Chart -->
+        <div class="gc-section">
+            <div class="gc-section-header">
+                <span class="gc-section-title">Equipment Location Timeline</span>
+                <div class="gc-page-info" id="gcPageInfo"></div>
+            </div>
+            <!-- Filter chip bar -->
+            <div class="gc-filter-bar" id="gcFilterBar"></div>
+            <div class="gc-gantt-container">
+                <div class="gc-gantt-wrapper">
+                    <!-- Fixed header: label header + timeline + milestones -->
+                    <div class="gc-gantt-head">
+                        <div class="gc-gantt-head-left">
+                            <div class="gc-gantt-label-header">Equipment</div>
+                            <div class="gc-gantt-labels-ms" id="gcGanttLabelMs"></div>
+                        </div>
+                        <div class="gc-gantt-head-right">
+                            <div class="gc-gantt-timeline" id="gcGanttTimeline"></div>
+                            <div class="gc-ms-strip" id="gcMsStrip"></div>
+                            <div class="gc-time-indicator gc-time-indicator-head" id="gcTimeIndicatorHead" title="Drag to scrub timeline"><div class="gc-time-indicator-head-handle"></div></div>
+                        </div>
+                    </div>
+                    <!-- Scrollable body: labels + bars together -->
+                    <div class="gc-gantt-body" id="gcGanttBody">
+                        <div class="gc-gantt-labels" id="gcGanttLabels"></div>
+                        <div class="gc-gantt-rows" id="gcGanttRows"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="gc-timeline-control">
+                <div class="gc-timeline-control-left">
+                    <span class="gc-timeline-label">Current: <span class="gc-current-date" id="gcCurrentDate">—</span></span>
+                </div>
+                <div class="gc-timeline-control-right">
+                    <input type="range" class="gc-timeline-slider" id="gcSlider" min="0" max="1000" value="0">
+                    <button class="gc-play-btn" id="gcPlayBtn" title="Play/Pause (Space)">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path id="gcPlayIcon" d="M8 5v14l11-7z"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="gc-date-controls">
+                <label>Start:</label><input type="date" id="gcRangeStart">
+                <label style="margin-left:16px;">End:</label><input type="date" id="gcRangeEnd">
+            </div>
+            <!-- Pagination -->
+            <div class="gc-pagination" id="gcPagination">
+                <div class="gc-page-nav">
+                    <button class="gc-pg-btn" onclick="GCApp.prevPage()" title="Previous">&larr; Prev</button>
+                    <span class="gc-pg-label" id="gcPgLabel">1 / 1</span>
+                    <button class="gc-pg-btn" onclick="GCApp.nextPage()" title="Next">Next &rarr;</button>
+                </div>
+                <div class="gc-page-sizes">
+                    <span style="font-size:10px;color:#5c6370;margin-right:6px;">Show:</span>
+                    <button class="gc-ps-btn" onclick="GCApp.setPageSize(15)">15</button>
+                    <button class="gc-ps-btn active" onclick="GCApp.setPageSize(20)">20</button>
+                    <button class="gc-ps-btn" onclick="GCApp.setPageSize(30)">30</button>
+                    <button class="gc-ps-btn" onclick="GCApp.setPageSize(50)">50</button>
+                    <button class="gc-ps-btn" onclick="GCApp.setPageSize(75)">75</button>
+                    <button class="gc-ps-btn" onclick="GCApp.setPageSize(100)">100</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Map -->
+        <div class="gc-section">
+            <div class="gc-section-header">
+                <span class="gc-section-title">Logistics Map</span>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button class="gc-btn" onclick="GCApp.resetMapPositions()" title="Reset node positions" style="font-size:10px;padding:5px 10px;">Reset Layout</button>
+                    <div class="gc-map-toggle">
+                        <button class="toggle-btn active" id="gcBtnSimple" onclick="GCApp.setMapMode('simple')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg><span>Simple</span>
+                        </button>
+                        <button class="toggle-btn" id="gcBtnWorld" onclick="GCApp.setMapMode('world')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span>World</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="gc-map-section">
+                <div class="gc-map-container">
+                    <svg class="gc-map-svg" id="gcMapSvg" viewBox="0 0 800 460">
+                        <defs><filter id="gcGlow"><feGaussianBlur stdDeviation="3" result="coloredBlur"/><feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                        <g id="gcTransportPaths"></g><g id="gcLocationNodes"></g><g id="gcItemDots"></g>
+                    </svg>
+                    <div class="gc-leaflet-container" id="gcLeafletMap"></div>
+                </div>
+                <div class="gc-map-sidebar">
+                    <div class="gc-legend-title">Locations</div>
+                    <div id="gcLegend"></div>
+                    <div class="gc-item-list">
+                        <div class="gc-item-list-title">Active Equipment</div>
+                        <div id="gcItemList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div><!-- /gc-view-gantt -->
+
+        <!-- View: Activity Summary -->
+        <div class="gc-view gc-view-summary" id="gcViewSummary" style="display:none;">
+            <div class="gc-section">
+                <div class="gc-section-header">
+                    <span class="gc-section-title">Test Activity Summary</span>
+                    <div style="display:flex;gap:10px;align-items:center;">
+                        <button class="gc-btn" id="gcSumExpandBtn" onclick="GCApp.toggleAllSummarySubs()" title="Expand or collapse all sub-activities">
+                            <svg id="gcSumExpandIcon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"/>
+                            </svg>
+                            <span id="gcSumExpandLabel">Expand All</span>
+                        </button>
+                        <div class="gc-summary-hint" id="gcSummaryHint"></div>
+                    </div>
+                </div>
+                <!-- Same filter chip bar as the Gantt view (Activity type + WP) -->
+                <div class="gc-filter-bar" id="gcFilterBarSummary"></div>
+                <div class="gc-summary-container" id="gcSummaryContainer">
+                    <!-- Built by GCApp._renderSummary() -->
+                </div>
+            </div>
+        </div><!-- /gc-view-summary -->
+    </div><!-- /gc-container -->
+
+    <div class="gc-tooltip" id="gcTooltip"><div class="gc-tooltip-title" id="gcTooltipTitle"></div><div id="gcTooltipContent"></div></div>
+    <div class="gc-ctx-menu" id="gcCtxMenu"></div>
+
+    <!-- WP Visibility Panel -->
+    <div class="gc-wp-panel-overlay" id="gcWpPanelOverlay">
+        <div class="gc-wp-panel">
+            <div class="gc-wp-panel-header">
+                <h3>Timeline WP Visibility</h3>
+                <button class="gc-wp-panel-close" onclick="GCApp.closeWpPanel()">&times;</button>
+            </div>
+            <div class="gc-wp-panel-hint">Toggle which Work Package rows appear in the milestone timeline.</div>
+            <div class="gc-wp-panel-list" id="gcWpPanelList"></div>
+            <div class="gc-wp-panel-actions">
+                <button class="btn-cancel" onclick="GCApp.wpPanelShowAll()">Show All</button>
+                <button class="btn-cancel" onclick="GCApp.wpPanelHideAll()">Hide All</button>
+                <button class="btn-save" onclick="GCApp.closeWpPanel()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Milestone Edit Modal (Gantt) -->
+    <div class="gc-modal-overlay" id="gcMsModal">
+        <div class="gc-modal gc-ms-edit-modal">
+            <h3 id="gcMsModalTitle">Milestone</h3>
+            <div class="gc-ms-form-row">
+                <div class="gc-ms-form-group" style="flex:2">
+                    <label>Title</label>
+                    <input type="text" id="gcMsTextInput" placeholder="Milestone label..." maxlength="60">
+                </div>
+                <div class="gc-ms-form-group" style="flex:1">
+                    <label>Date (dd.mm.yy)</label>
+                    <input type="text" id="gcMsDateInput" placeholder="01.03.26" maxlength="10">
+                </div>
+                <div class="gc-ms-form-group" style="flex:0.8">
+                    <label>Work Package</label>
+                    <select id="gcMsWpSelect"></select>
+                </div>
+            </div>
+            <div class="gc-ms-form-row">
+                <div class="gc-ms-form-group">
+                    <label>Shape</label>
+                    <div class="gc-ms-shape-picker" id="gcMsShapePicker">
+                        <button class="ms-shape-btn active" data-shape="circle" title="Circle"><svg width="16" height="16"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg></button>
+                        <button class="ms-shape-btn" data-shape="square" title="Square"><svg width="16" height="16"><rect x="2" y="2" width="12" height="12" rx="1" fill="currentColor"/></svg></button>
+                        <button class="ms-shape-btn" data-shape="triangle" title="Triangle"><svg width="16" height="16"><polygon points="8,1 15,14 1,14" fill="currentColor"/></svg></button>
+                        <button class="ms-shape-btn" data-shape="diamond" title="Diamond"><svg width="16" height="16"><polygon points="8,1 15,8 8,15 1,8" fill="currentColor"/></svg></button>
+                    </div>
+                </div>
+                <div class="gc-ms-form-group">
+                    <label>Size</label>
+                    <div class="gc-ms-size-picker" id="gcMsSizePicker">
+                        <button class="ms-size-btn" data-size="small" title="Small">S</button>
+                        <button class="ms-size-btn active" data-size="medium" title="Large">L</button>
+                        <button class="ms-size-btn" data-size="large" title="Extra Large">XL</button>
+                    </div>
+                </div>
+                <div class="gc-ms-form-group">
+                    <label>Color</label>
+                    <div class="gc-ms-color-picker" id="gcMsColorPicker">
+                        <button class="ms-color-btn" data-color="#ffffff" style="background:#ffffff" title="White"></button>
+                        <button class="ms-color-btn" data-color="#00d4ff" style="background:#00d4ff" title="Cyan"></button>
+                        <button class="ms-color-btn" data-color="#8b5cf6" style="background:#8b5cf6" title="Purple"></button>
+                        <button class="ms-color-btn" data-color="#10b981" style="background:#10b981" title="Green"></button>
+                        <button class="ms-color-btn" data-color="#f59e0b" style="background:#f59e0b" title="Amber"></button>
+                        <button class="ms-color-btn" data-color="#ef4444" style="background:#ef4444" title="Red"></button>
+                        <button class="ms-color-btn" data-color="#ec4899" style="background:#ec4899" title="Pink"></button>
+                    </div>
+                </div>
+            </div>
+            <div class="gc-ms-preview" id="gcMsPreview"></div>
+            <div class="gc-modal-actions">
+                <button class="btn-danger" id="gcMsDeleteBtn" onclick="GCApp.deleteMsFromModal()" style="margin-right:auto;">Delete</button>
+                <button class="btn-cancel" onclick="GCApp.closeMsModal()">Cancel</button>
+                <button class="btn-save" onclick="GCApp.saveMsModal()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="gc-modal-overlay" id="gcEditModal">
+        <div class="gc-modal">
+            <h3 id="gcModalTitle">Add Location Bar</h3>
+            <input type="hidden" id="gcModalSecIdx" value="0"><input type="hidden" id="gcModalRowIdx" value="0"><input type="hidden" id="gcModalBarId" value=""><input type="hidden" id="gcModalTestId" value="">
+            <div style="font-size:12px;color:#00d9ff;margin-bottom:14px;font-weight:500;" id="gcModalEquipName"></div>
+            <div class="gc-modal-test-badge" id="gcModalTestBadge" style="display:none;font-size:10px;color:#8b5cf6;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.25);border-radius:4px;padding:4px 10px;margin-bottom:10px;"></div>
+            <div class="gc-modal-field"><label>Location</label><select id="gcModalLocation"></select></div>
+            <div class="gc-modal-row">
+                <div class="gc-modal-field"><label>Start Date</label><input type="date" id="gcModalStart"></div>
+                <div class="gc-modal-field"><label>End Date</label><input type="date" id="gcModalEnd"></div>
+            </div>
+            <div class="gc-modal-actions">
+                <button class="btn-danger" id="gcModalDeleteBtn" onclick="GCApp.deleteFromModal()" style="display:none;">Delete</button>
+                <button class="btn-cancel" onclick="GCApp.closeModal('gcEditModal')">Cancel</button>
+                <button class="btn-save" onclick="GCApp.saveModal()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="js/storage.js"></script><script src="js/sync-config.js"></script><script src="js/sync.js"></script>
+    <script src="js/nav.js"></script><script src="js/data.js"></script><script src="js/flow-data.js"></script><script src="js/undo.js"></script><script src="js/settings.js"></script><script src="js/gantt-chart-app.js"></script>
+</body>
+</html>
